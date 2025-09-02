@@ -1,4 +1,4 @@
-# BIIGLE-video-epifaunal-density-estimation .- BIVIEDES -
+# BIIGLE-video-epifaunal-density-estimation .- BVides -
 
 We present a method to calculate epifaunal (binned) species abundance and density along video transects, calculating a strip transect of seabed area (transect length * transect width) derived from geographic position and video data.
 
