@@ -23,7 +23,11 @@ library(tsibble)
 library(zoo) # for interpolations
 library(plotly) # for interactive plots 
 library(tidyverse)
+<<<<<<< HEAD
 library(magrittr)
+=======
+library(magrittr) 
+>>>>>>> e416e79d2e0d6ec12937c5ada6ff35536a9416b5
 
 
 getwd() -> wd
