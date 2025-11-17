@@ -1,0 +1,248 @@
+---
+title: "step 2: smoothing navigation data"
+author: "Your Name"
+date: "Today's Date"
+format:
+  html:
+    toc: true
+    number-sections: true
+editor: 
+  markdown: 
+    wrap: sentence
+---
+
+## Setup
+
+Before beginning, we will load necessary libraries.
+
+```{r}
+
+
+library(lubridate)
+library(tsibble)
+library(zoo) # for interpolations
+library(plotly) # for interactive plots 
+library(tidyverse)
+library(magrittr)
+
+
+getwd() -> wd
+# delete the "code" part of the pathway so that the rest of the path are not relative to the code directory
+wd <- str_remove(wd, "/code") 
+
+# set the working directory to the directory above "code"
+setwd(wd)
+
+# list the csv tables and print their names
+list.files(paste0( wd,"/nav"), pattern = ".csv$" ) %>% 
+# exclude the "arranged" pattern 
+str_subset("smoothed", negate = T)  %>%  paste0("\n avialable CSV tables: \n",.) %>% cat
+
+```
+
+# Load data
+
+open the table with time and xy positions, here maybe need to change/delete working direction???
+(linked to my local drive) setwd("D:/PHD/ROV/ROV raw video density estimates/navigation_smoothing")
+
+```{r}
+
+navigation_file <- "Generic_navigation_generic.csv"
+read_csv(paste0(wd,"/nav/",navigation_file) ) -> navigation
+
+```
+
+# set the time column
+
+depending on the formate of your time column and The mood of Excel, you might need to change the time column to a datetime object if it is not done automatically
+
+```{r}
+
+ # fill the gaps in the shp file
+# time management
+navigation %>% 
+# make the time column - if you have a data and a time column
+  mutate(datetime = datetime) -> positions
+# if you have a dmy_hms character string
+
+
+# check that datetime is a datetime object
+# if class of datetime is not "POSIXct" or "POSIXt" then convert it
+if(!class(positions$datetime)[1] %in% c("POSIXct", "POSIXt"))  {
+  print("setting datetime to POSIXt")
+  positions %>%  mutate( datetime = dmy_hms(datetime)) -> positions
+}
+
+# check that the time column is in the right format
+positions %>% 
+  select(datetime) %>% glimpse
+
+# make a time column of elapsed seconds based on column datetime, in case for if videotime (logged via ROV system) is not starting at 0
+positions$elapsed_seconds <- as.numeric(difftime(positions$datetime, positions$datetime[1],units = "secs"))
+```
+
+
+# Smooth
+
+*stats::smooth.spline* function specifically fits a cubic smoothing spline, which finds a trade-off between fitting the data closely and maintaining smoothness.
+
+Key Parameters (for complete list, see Rs help page of smooth.spline)
+
+-   t: A numeric vector specifying the predictor variable.
+    Here, we use t as a sequence from 1 to the number of time stamps in the data.
+
+-   y: A numeric vector specifying the response variable.
+    The lat and long
+
+-   spar: A numeric value that controls the smoothness of the spline.
+    A smaller value of spar results in a smoother spline, while a larger value allows the spline to fit the data more closely.
+    if too high, all the turns in your data will be smoothed out.
+    If too low, the spline will not remove the noise in positioning and the distance traveled will be overestimated.
+
+-   w: Optional weights for the observations.
+
+-   df: Degrees of freedom for the spline.
+    This can be used instead or in addition of spar to control the smoothness.
+
+-   cv: If TRUE, the smoothing parameter is chosen objectively by ordinary leave-one- out cross-validation, if FALSE by generalized’ cross-validation (GCV) 
+
+-   all.knots: If TRUE, all data points are used as knots.
+    Otherwise, a subset of knots is chosen.
+
+In each the resulting output vectors of smoothed latitude and longitude (here sx and sy) a cross validation score (either generalized or true, depending on the cv settings) are computed, supporting assessment of the model.
+
+important smoothing parameters to set here:
+
+```{r}
+
+# Smooth the track  
+### t <- 1:nrow(positions)
+### x <- positions$LON2
+### y <- positions$LAT2
+### z <- positions$DEPTH2
+# z  # no smoothing of th ~DEPTH: interpolation of depth only
+# Fit a cubic smoothing spline to each dimension
+
+
+t <- 1:nrow(positions)
+x <- positions$lon
+y <- positions$lat
+z <- positions$depth
+
+
+# !!! Method 1) this is user input thus subjective. You can decide on the right smoothing parameter after checking the plot below
+dfs = 100
+spars = 0.2
+
+sx <- smooth.spline(t, x, df = dfs, spar = spars, cv = TRUE)
+sy <- smooth.spline(t, y, df = dfs, spar = spars, cv = TRUE)
+sz <- smooth.spline(t, z, df = dfs, spar = spars, cv = TRUE)
+
+# !!! Method 2) let the model compute the smoothing parameter objectively by ordinary leave-one-out (cv = TRUE) or generalized’ cross-validation (GCV) (cv = FALSE), if the codelines below are activated (and the code above deactivated):
+
+### sx <- smooth.spline(t, x, cv = FALSE)
+### sy <- smooth.spline(t, y, cv = FALSE)
+### sz <- smooth.spline(t, z, cv = FALSE)
+
+```
+
+# view raw and smooth nav
+ 
+### interactive plot
+
+# add the depth to the plot and view in 3D
+
+```{r}
+
+# make the same plot in 3d with depth2 as the 3rd dimension
+plot_ly() %>%
+  # make smaller point size
+  add_trace(x = x, y = y, z = - z, mode = "markers", type = "scatter3d", name = "un-smoothed", marker = list(size = 4)) %>%
+  # use the smoothed XYZ
+  add_trace(x = sx[[2]], y = sy[[2]], z = - sz[[2]], mode = "lines", type = "scatter3d", name = "smoothed") %>%
+  layout(title = "Difference of un-smoothed and smoothed ROV transect",
+         scene = list(xaxis = list(title = "Longitude"),
+                      yaxis = list(title = "Latitude"),
+                      zaxis = list(title = "Depth")))
+
+```
+
+
+# interpolate
+
+The zoo::na.approx function is part of the zoo package in R, which is designed for handling time series data and other ordered observations. The na.approx function is specifically used to approximate or interpolate missing values (NAs) in a numeric vector or time series. It assumes a linear relationship between the known data points surrounding the missing values to estimate them.
+
+```{r}
+
+# add the new coordinates to the table
+tibble( xsmoothed = sx[[2]] ,ysmoothed = sy[[2]], depthsmoothed = sz[[2]] )  %>%
+  bind_cols(positions,.)  -> smoothed_navigation
+
+# create the missing time stamps so that you have a reading at each second 
+smoothed_navigation %>%
+  select(datetime, videotime,lon,lat, depth, elapsed_seconds,xsmoothed, ysmoothed,depthsmoothed ) %>% 
+  add_row(. , datetime  = .$datetime[1] + 1  , .before = 2) %>% 
+  as_tsibble(index = datetime) %>%
+  fill_gaps() %>% # automatically creates the missing timestamps
+  as_tibble() %>%
+  # interpolate the coordinates values for the timestamps you have created
+  # these wont be accurate but you will replace them soon
+  # they are still a basic interpolation of the closest coordinates 
+  mutate(LON2 = zoo::na.approx(as.vector(xsmoothed)),
+         LAT2 = zoo::na.approx(as.vector(ysmoothed)), 
+         DEPTH2 = zoo::na.approx(as.vector(depthsmoothed))         
+         ) -> interpolated_smoothed_navigation  
+# note this might also be enough if your track look good
+
+# check that there are no NA left in LON2 or LAT2 or DEPTH2
+if(any(is.na(positions$LON2)) | any(is.na(positions$LAT2)) | any(is.na(positions$DEPTH2))) {
+  print("There are NA values in LON2, LAT2 or DEPTH2")
+} else {
+  print("No NA values in LON2, LAT2 or DEPTH2. That's great")
+}
+ 
+
+```
+
+# plot the interpolated smoothed track
+```{r}
+
+
+plot_ly() %>%
+  # make smaller point size
+  add_trace( data = interpolated_smoothed_navigation,
+            x = ~lon, y = ~lat, z = ~(-depth),
+            mode = "markers", type = "scatter3d", name = "un-smoothed ", marker = list(size = 4), 
+            # display x y z and datetime when hovering over each point
+            text = ~datetime%>% as.character(),
+               hovertemplate = paste('<b>X</b>: %{x}',
+                        '<br><b>Y</b>: %{y}',
+                        '<br><b>Depth</b>: %{z}',
+                        '<br><b>Time</b>: %{text}',sep = "" )
+            ) %>%
+  # use the smoothed XYZ
+  add_trace(x = interpolated_smoothed_navigation$LON2, y = interpolated_smoothed_navigation$LAT2, z = - interpolated_smoothed_navigation$DEPTH2, mode = "lines", type = "scatter3d", name = "smoothed & interpolated") %>%
+  layout(title = "Difference of un-smoothed and smoothed & interpolated ROV transect",
+         scene = list(xaxis = list(title = "Longitude"),
+                      yaxis = list(title = "Latitude"),
+                      zaxis = list(title = "Depth")))  
+
+  
+
+
+```
+
+
+# export
+
+attach the smoothed XY and the interpolated depth to the navigation
+
+```{r}
+
+
+write_csv( interpolated_smoothed_navigation, paste0(wd,"/nav/smoothed_",navigation_file))   
+
+#####ADDITION: In case smoothing is not desired or should be ommited, activate following steps to retrieve the raw coordinates
+###positions %>% rename(depth_interpolated = DEPTH2, videotime_interpolated = VIDEOTIME2 ) -> non_smoothed_navigation
+###write_csv( non_smoothed_navigation, paste0(wd,"/nav/smoothed_",navigation_file))  
+```
