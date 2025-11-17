@@ -23,11 +23,8 @@ library(tsibble)
 library(zoo) # for interpolations
 library(plotly) # for interactive plots 
 library(tidyverse)
-<<<<<<< HEAD
-library(magrittr)
-=======
 library(magrittr) 
->>>>>>> e416e79d2e0d6ec12937c5ada6ff35536a9416b5
+
 
 
 getwd() -> wd
@@ -138,15 +135,15 @@ z <- positions$depth
 dfs = 100
 spars = 0.2
 
-sx <- smooth.spline(t, x, df = dfs, spar = spars, cv = TRUE)
-sy <- smooth.spline(t, y, df = dfs, spar = spars, cv = TRUE)
-sz <- smooth.spline(t, z, df = dfs, spar = spars, cv = TRUE)
+## sx <- smooth.spline(t, x, df = dfs, spar = spars, cv = TRUE)
+## sy <- smooth.spline(t, y, df = dfs, spar = spars, cv = TRUE)
+## sz <- smooth.spline(t, z, df = dfs, spar = spars, cv = TRUE)
 
 # !!! Method 2) let the model compute the smoothing parameter objectively by ordinary leave-one-out (cv = TRUE) or generalized’ cross-validation (GCV) (cv = FALSE), if the codelines below are activated (and the code above deactivated):
 
-### sx <- smooth.spline(t, x, cv = FALSE)
-### sy <- smooth.spline(t, y, cv = FALSE)
-### sz <- smooth.spline(t, z, cv = FALSE)
+sx <- smooth.spline(t, x, cv = FALSE)
+sy <- smooth.spline(t, y, cv = FALSE)
+sz <- smooth.spline(t, z, cv = FALSE)
 
 ```
 
