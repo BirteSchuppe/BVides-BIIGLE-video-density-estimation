@@ -24,6 +24,7 @@ library(zoo) # for interpolations
 library(plotly) # for interactive plots 
 library(tidyverse)
 library(magrittr) 
+library(mgcv)
 
 
 
@@ -139,6 +140,21 @@ sx <- smooth.spline(t, x, cv = TRUE)
 sy <- smooth.spline(t, y, cv = TRUE)
 sz <- smooth.spline(t, z, cv = TRUE)
 
+
+gam_east_gcv <- gam(x ~ s(t, bs = "ps",k=100),  method="REML")
+gam_north_gcv <- gam(y ~ s(t, bs = "ps",k=100), method="REML")
+gam_depth_gcv <- gam(z ~ s(t, bs = "ps",k=100), method="REML") 
+
+
+smooth_x <- predict(sx, t)$y
+smooth_x <- predict(gam_east_gcv   ) %>% as.vector()
+smooth_y <- predict(sy, t)$y
+smooth_y <- predict(gam_north_gcv   ) %>% as.vector()
+smooth_z <- predict(sz, t)$y
+smooth_z <- predict(gam_depth_gcv   )%>% as.vector()
+
+plot(z,smooth_z, type='l', col='red')
+
 ```
 
 
@@ -156,6 +172,11 @@ sy$pen.crit
 sz$cv.crit
 sz$pen.crit
 
+# or if using gam
+summary(gam_east_gcv) %>% print()
+summary(gam_north_gcv) %>% print()
+summary(gam_depth_gcv) %>% print()
+
 ```
 
 
@@ -172,7 +193,7 @@ plot_ly() %>%
   # make smaller point size
   add_trace(x = x, y = y, z = - z, mode = "markers", type = "scatter3d", name = "un-smoothed", marker = list(size = 4)) %>%
   # use the smoothed XYZ
-  add_trace(x = sx[[2]], y = sy[[2]], z = - sz[[2]], mode = "lines", type = "scatter3d", name = "smoothed") %>%
+  add_trace(x = smooth_x, y = smooth_y, z = - smooth_z, mode = "lines", type = "scatter3d", name = "smoothed") %>%
   layout(title = "Difference of un-smoothed and smoothed ROV transect",
          scene = list(xaxis = list(title = "Longitude"),
                       yaxis = list(title = "Latitude"),
@@ -190,7 +211,7 @@ plot_ly() %>%
   add_trace(x = x, y = y, z = - z, mode = "line", type = "scatter3d", name = "un-smoothed", line = list(size = 6)) %>%
   add_trace(x = x, y = y, z = - z, mode = "markers", type = "scatter3d", name = "un-smoothed", marker = list(size = 3)) %>%
   # use the smoothed XYZ
-  add_trace(x = sx[[2]], y = sy[[2]], z = - sz[[2]], mode = "line", type = "scatter3d", name = "smoothed",
+  add_trace(x = smooth_x, y = smooth_y, z = - smooth_z, mode = "line", type = "scatter3d", name = "smoothed",
             line = list(size = 4)           ) %>%
   layout(title = "Difference of un-smoothed and smoothed ROV transect",
          scene = list(xaxis = list(title = "Longitude"),
@@ -208,10 +229,10 @@ The zoo::na.approx function is part of the zoo package in R, which is designed f
 
 ```{r}
 
-# add the new coordinates to the table
-tibble( xsmoothed = sx[[2]] ,
-        ysmoothed = sy[[2]],
-        depthsmoothed = sz[[2]] )  %>%
+# add the new coordinates to the table 
+tibble( xsmoothed = smooth_x ,
+        ysmoothed = smooth_y,
+        depthsmoothed =smooth_z )  %>%
   bind_cols(positions,.)  -> smoothed_navigation
  
 # create the missing time stamps so that you have a reading at each second 
@@ -222,6 +243,7 @@ smoothed_navigation %>%
   fill_gaps() %>% # automatically creates the missing timestamps
   as_tibble() -> smoothed_navigation_filled
 
+# make a new time vector at the frequency you decided
 t2  <- as.numeric(difftime(smoothed_navigation_filled$datetime, smoothed_navigation_filled$datetime[1],units = "secs"))
 
   # interpolate the coordinates values for the timestamps you have created
@@ -233,6 +255,15 @@ smoothed_navigation_filled %>%
          DEPTH2 = predict(sz, t2)$y         
          ) -> interpolated_smoothed_navigation  
 # note this might also be enough if your track look good
+
+# if using gam
+interpolated_smoothed_navigation %>% 
+ mutate(LON3 = predict(gam_east_gcv, newdata = data.frame(t = t2) ) %>% as.vector() ,
+        LAT3 = predict(gam_north_gcv, newdata = data.frame(t = t2) ) %>% as.vector(), 
+        DEPTH3 = predict(gam_depth_gcv, newdata = data.frame(t = t2) ) %>% as.vector()         
+ ) -> interpolated_smoothed_navigation
+
+
 
 # check that there are no NA left in LON2 or LAT2 or DEPTH2
 if(any(is.na(interpolated_smoothed_navigation$LON2)) | any(is.na(interpolated_smoothed_navigation$LAT2)) | any(is.na(interpolated_smoothed_navigation$DEPTH2))) {
@@ -248,11 +279,11 @@ if(any(is.na(interpolated_smoothed_navigation$LON2)) | any(is.na(interpolated_sm
 ```{r}
 
 
-plot_ly() %>%
+plot3d <- plot_ly() %>%
   # make smaller point size
   add_trace( data = interpolated_smoothed_navigation,
             x = ~lon, y = ~lat, z = ~(-depth),
-            mode = "markers", type = "scatter3d", name = "un-smoothed ", marker = list(size = 4), 
+            mode = "markers", type = "scatter3d", name = "un-smoothed ", marker = list(size = 3), 
             # display x y z and datetime when hovering over each point
             text = ~datetime%>% as.character(),
                hovertemplate = paste('<b>X</b>: %{x}',
@@ -265,16 +296,104 @@ plot_ly() %>%
             mode = "line", type = "scatter3d", name = "un-smoothed ", line = list(size = 4) ) %>%
   
   # use the smoothed XYZ
-  add_trace(x = interpolated_smoothed_navigation$LON2, y = interpolated_smoothed_navigation$LAT2, z = - interpolated_smoothed_navigation$DEPTH2, mode = "lines", type = "scatter3d", name = "smoothed & interpolated") %>%
-    add_trace(x = interpolated_smoothed_navigation$LON2, y = interpolated_smoothed_navigation$LAT2, z = - interpolated_smoothed_navigation$DEPTH2, mode = "markers", type = "scatter3d", name = "smoothed & interpolated") %>%
+  add_trace(x = interpolated_smoothed_navigation$LON2, y = interpolated_smoothed_navigation$LAT2, z = - interpolated_smoothed_navigation$DEPTH2, mode = "lines", type = "scatter3d", name = "smoothed with cubic splined ") %>%
+    add_trace(x = interpolated_smoothed_navigation$LON2, y = interpolated_smoothed_navigation$LAT2, z = - interpolated_smoothed_navigation$DEPTH2, mode = "markers", type = "scatter3d", name = "smoothed with cubic splined ",
+               marker = list(size = 3) ) %>%
   
   
+  # use the smoothed XYZ
+add_trace(x = interpolated_smoothed_navigation$LON3, y = interpolated_smoothed_navigation$LAT2, z = - interpolated_smoothed_navigation$DEPTH3, mode = "lines", type = "scatter3d", name = "smoothed with GAM") %>%
+    add_trace(x = interpolated_smoothed_navigation$LON3, y = interpolated_smoothed_navigation$LAT2, z = - interpolated_smoothed_navigation$DEPTH3, mode = "markers", type = "scatter3d", name = "smoothed with GAM",
+               marker = list(size = 3) ) %>%  
+  
+  # plot parameters 
   layout(title = "Difference of un-smoothed and smoothed & interpolated ROV transect",
          scene = list(xaxis = list(title = "Longitude"),
                       yaxis = list(title = "Latitude"),
                       zaxis = list(title = "Depth")))  
 
+
+plot3d %>% print()  
+
+library(htmlwidgets)
+
+
+saveWidget(plot3d, paste0( "~/temp/", "3D Navigation ", ".html") )
+
+
+```
+
+# confidence interval with GAM
+
+```{r}
+# get the confidence intervals for the GAM predictions
+pred_x <- predict(gam_east_gcv, newdata = data.frame(t = t2), se.fit = TRUE)
+pred_y <- predict(gam_north_gcv, newdata = data.frame(t = t2), se.fit = TRUE)
+pred_depth <- predict(gam_depth_gcv, newdata = data.frame(t = t2), se.fit = TRUE)
+# add the confidence intervals to the interpolated smoothed navigation
+interpolated_smoothed_navigation <- interpolated_smoothed_navigation %>%
+  mutate(DEPTH3_lower = ( pred_depth$fit - 1.96 * pred_depth$se.fit) %>% as.vector(),
+         DEPTH3_upper =  ( pred_depth$fit + 1.96 * pred_depth$se.fit) %>% as.vector() ) %>% 
+    mutate(LON3_lower = ( pred_x$fit - 1.96 * pred_x$se.fit) %>% as.vector(),
+         LON3_upper =  ( pred_x$fit + 1.96 * pred_x$se.fit) %>% as.vector() )  %>% 
+  mutate(LAT3_lower = ( pred_y$fit - 1.96 * pred_y$se.fit) %>% as.vector(),
+         LAT3_upper =  ( pred_y$fit + 1.96 * pred_y$se.fit) %>% as.vector() )  %>% 
+  as_tibble()
+
+
+interpolated_smoothed_navigation %>% 
+  select(datetime, DEPTH3, DEPTH3_lower, DEPTH3_upper) %>% 
+  glimpse()
+
+interpolated_smoothed_navigation %>% 
+  ggplot(aes(x = datetime)) +
+  geom_ribbon(aes(ymin = DEPTH3_lower, ymax = DEPTH3_upper), fill = "lightblue", alpha = 0.5) +
+  geom_line(aes(y = DEPTH3), color = "blue") +
+  labs(title = "Predicted Depth with 95% Confidence Intervals",
+       x = "Datetime",
+       y = "Depth") +
+  theme_minimal()
+
+
+# plot DEPTHJ3 and the confidence intervals
+plot_depth_ci <- plot_ly(data = interpolated_smoothed_navigation, x = ~datetime) %>%
+  add_lines(y = ~DEPTH3, name = "Predicted Depth (GAM)", line = list(color = 'blue')) %>%
+  add_ribbons(ymin = ~DEPTH3_lower, ymax = ~DEPTH3_upper, name = "95% CI",
+              fillcolor = 'rgba(0, 0, 255, 0.2)',
+              line = list(color = 'rgba(0, 0, 255, 0.2)')) %>%
   
+  layout(title = "Predicted Depth with 95% Confidence Intervals",
+         xaxis = list(title = "Datetime"),
+         yaxis = list(title = "Depth"))
+
+plot_depth_ci %>% print()
+
+```
+
+
+# confidence interval in the X dimension
+```{r}
+
+# confidence interval in X 
+interpolated_smoothed_navigation %>% 
+  ggplot(aes(x = datetime)) +
+  geom_ribbon(aes(ymin = LON3_lower, ymax = LON3_upper), fill = "lightgreen", alpha = 0.5) +
+  geom_line(aes(y = LON3), color = "green") +
+  labs(title = "Predicted Longitude with 95% Confidence Intervals",
+       x = "Datetime",
+       y = "Longitude") +
+  theme_minimal()
+
+# confidence interval in Y
+interpolated_smoothed_navigation %>% 
+  ggplot(aes(x = datetime)) +
+  geom_ribbon(aes(ymin = LAT3_lower, ymax = LAT3_upper), fill = "lightcoral", alpha = 0.5) +
+  geom_line(aes(y = LAT3), color = "red") +
+  labs(title = "Predicted Latitude with 95% Confidence Intervals",
+       x = "Datetime",
+       y = "Latitude") +
+  theme_minimal()
+
 
 
 ```
