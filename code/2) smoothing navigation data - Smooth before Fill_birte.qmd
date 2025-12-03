@@ -49,7 +49,7 @@ open the table with time and xy positions, here maybe need to change/delete work
 
 ```{r}
 
-navigation_file <- "steep1.csv"
+navigation_file <- "flat1.csv"
 read_csv(paste0(wd,"/nav/",navigation_file) ) -> navigation
 
 ```
@@ -126,31 +126,17 @@ y <- positions$lat
 z <- positions$depth
 
 
-# !!! Method 1) this is user input thus subjective. You can decide on the right smoothing parameter after checking the plot below
-###dfs = 100
-###spars = 0.2
+### Fit a GAM with p-spline and smoothing parameter calculated based on REML to each dimension
 
-## sx <- smooth.spline(t, x, df = dfs, spar = spars, cv = TRUE)
-## sy <- smooth.spline(t, y, df = dfs, spar = spars, cv = TRUE)
-## sz <- smooth.spline(t, z, df = dfs, spar = spars, cv = TRUE)
+gam_east_gcv <- gam(x ~ s(t, bs = "ps", k=175),  method="REML")
+gam_north_gcv <- gam(y ~ s(t, bs = "ps", k=175),  method="REML")
+gam_depth_gcv <- gam(z ~ s(t, bs = "ps", k=175),   method="REML") 
 
-# !!! Method 2) let the model compute the smoothing parameter objectively by ordinary leave-one-out (cv = TRUE) or generalized’ cross-validation (GCV) (cv = FALSE), if the codelines below are activated (and the code above deactivated):
-
-###sx <- smooth.spline(t, x, cv = FALSE)
-###sy <- smooth.spline(t, y, cv = FALSE)
-###sz <- smooth.spline(t, z, cv = FALSE)
-
-
-gam_east_gcv <- gam(x ~ s(t, bs = "ps",k=1000),  method="REML")
-gam_north_gcv <- gam(y ~ s(t, bs = "ps",k=1000), method="REML")
-gam_depth_gcv <- gam(z ~ s(t, bs = "ps",k=1000), method="REML") 
-
-
-####smooth_x <- predict(sx, t)$y
+### predict 
 smooth_x <- predict(gam_east_gcv   ) %>% as.vector()
-#####smooth_y <- predict(sy, t)$y
+
 smooth_y <- predict(gam_north_gcv   ) %>% as.vector()
-####smooth_z <- predict(sz, t)$y
+
 smooth_z <- predict(gam_depth_gcv   )%>% as.vector()
 
 plot(z,smooth_z, type='l', col='red')
@@ -164,18 +150,14 @@ TO DO: Add a model assessment step here based on the model output
 cross-validation score, ‘generalized’ or true, depending on cv. The CV score is often called “PRESS” (and labeled on print()), for ‘PREdiction Sum of Squares’. Note that this is not the same as the (CV or GCV) score which is minimized during fitting (and returned in crit), e.g., in the case of nx < n (where nx = n x =n  x ​ is the number of unique x values).
 
 ```{r}
-# print the cross validation score
-#####sx$cv.crit
-###sx$pen.crit
-###sy$cv.crit
-####sy$pen.crit
-###sz$cv.crit
-###sz$pen.crit
+
 
 # or if using gam
 gam.check(gam_east_gcv) %>% print()
 gam.check(gam_north_gcv) %>% print()
 gam.check(gam_depth_gcv) %>% print()
+
+
 
 ```
 
@@ -243,18 +225,10 @@ smoothed_navigation %>%
   fill_gaps() %>% # automatically creates the missing timestamps
   as_tibble() -> smoothed_navigation_filled
 
-# make a new time vector at the frequency you decided
+# make a new time vector for seconds
 t2  <- as.numeric(difftime(smoothed_navigation_filled$datetime, smoothed_navigation_filled$datetime[1],units = "secs"))
 
-  # interpolate the coordinates values for the timestamps you have created
-  # these wont be accurate but you will replace them soon
-  # they are still a basic interpolation of the closest coordinates 
-####smoothed_navigation_filled %>% 
-##  mutate(LON2 = predict(sx, t2 )$y ,
-###       LAT2 = predict(sy, t2)$y, 
-###        DEPTH2 = predict(sz, t2)$y         
-##         ) -> interpolated_smoothed_navigation  
-# note this might also be enough if your track look good
+
 
 # if using gam ## add t2 as videotime in seconds in 1 second intervals
 smoothed_navigation_filled %>% 
@@ -299,15 +273,11 @@ plot3d <- plot_ly() %>%
             mode = "line", type = "scatter3d", name = "un-smoothed ", line = list(size = 4) ) %>%
   
   # use the smoothed XYZ
-  add_trace(x = interpolated_smoothed_navigation$LON2, y = interpolated_smoothed_navigation$LAT2, z = - interpolated_smoothed_navigation$DEPTH2, mode = "lines", type = "scatter3d", name = " GAM smoothed with cubic spline ") %>%
-    add_trace(x = interpolated_smoothed_navigation$LON2, y = interpolated_smoothed_navigation$LAT2, z = - interpolated_smoothed_navigation$DEPTH2, mode = "markers", type = "scatter3d", name = "GAM smoothed with cubic spline ",
+  add_trace(x = interpolated_smoothed_navigation$LON2, y = interpolated_smoothed_navigation$LAT2, z = - interpolated_smoothed_navigation$DEPTH2, mode = "lines", type = "scatter3d", name = " GAM smoothed with p-spline ") %>%
+    add_trace(x = interpolated_smoothed_navigation$LON2, y = interpolated_smoothed_navigation$LAT2, z = - interpolated_smoothed_navigation$DEPTH2, mode = "markers", type = "scatter3d", name = "GAM smoothed with p-spline ",
                marker = list(size = 3) ) %>%
   
-  
-  # use the smoothed XYZ
-###add_trace(x = interpolated_smoothed_navigation$LON3, y = interpolated_smoothed_navigation$LAT2, z = - interpolated_smoothed_navigation$DEPTH3, mode = "lines", type = "scatter3d", name = "smoothed with GAM") %>%
-#    add_trace(x = interpolated_smoothed_navigation$LON3, y = interpolated_smoothed_navigation$LAT2, z = - interpolated_smoothed_navigation$DEPTH3, mode = "markers", type = "scatter3d", name = "smoothed with GAM",
- #              marker = list(size = 3) ) %>%  
+
   
   # plot parameters 
   layout(title = "Difference of un-smoothed and smoothed & interpolated ROV transect",
@@ -321,82 +291,7 @@ plot3d %>% print()
 library(htmlwidgets)
 
 
-saveWidget(plot3d, paste0( "C:/Users/06169774/OneDrive - Nord universitet/BIIGLE-video-epifaunal-density-estimation/", "3D Navigation_cubick50 ", ".html") )
-
-
-```
-
-# confidence interval with GAM
-
-```{r}
-# get the confidence intervals for the GAM predictions
-pred_x <- predict(gam_east_gcv, newdata = data.frame(t = t2), se.fit = TRUE)
-pred_y <- predict(gam_north_gcv, newdata = data.frame(t = t2), se.fit = TRUE)
-pred_depth <- predict(gam_depth_gcv, newdata = data.frame(t = t2), se.fit = TRUE)
-# add the confidence intervals to the interpolated smoothed navigation
-interpolated_smoothed_navigation <- interpolated_smoothed_navigation %>%
-  mutate(DEPTH2_lower = ( pred_depth$fit - 1.96 * pred_depth$se.fit) %>% as.vector(),
-         DEPTH2_upper =  ( pred_depth$fit + 1.96 * pred_depth$se.fit) %>% as.vector() ) %>% 
-    mutate(LON2_lower = ( pred_x$fit - 1.96 * pred_x$se.fit) %>% as.vector(),
-         LON2_upper =  ( pred_x$fit + 1.96 * pred_x$se.fit) %>% as.vector() )  %>% 
-  mutate(LAT2_lower = ( pred_y$fit - 1.96 * pred_y$se.fit) %>% as.vector(),
-         LAT2_upper =  ( pred_y$fit + 1.96 * pred_y$se.fit) %>% as.vector() )  %>% 
-  as_tibble()
-
-
-interpolated_smoothed_navigation %>% 
-  select(datetime, DEPTH2, DEPTH2_lower, DEPTH2_upper) %>% 
-  glimpse()
-
-interpolated_smoothed_navigation %>% 
-  ggplot(aes(x = datetime)) +
-  geom_ribbon(aes(ymin = DEPTH2_lower, ymax = DEPTH2_upper), fill = "lightblue", alpha = 0.5) +
-  geom_line(aes(y = DEPTH2), color = "blue") +
-  labs(title = "Predicted Depth with 95% Confidence Intervals",
-       x = "Datetime",
-       y = "Depth") +
-  theme_minimal()
-
-
-# plot DEPTHJ3 and the confidence intervals
-plot_depth_ci <- plot_ly(data = interpolated_smoothed_navigation, x = ~datetime) %>%
-  add_lines(y = ~DEPTH2, name = "Predicted Depth (GAM)", line = list(color = 'blue')) %>%
-  add_ribbons(ymin = ~DEPTH2_lower, ymax = ~DEPTH2_upper, name = "95% CI",
-              fillcolor = 'rgba(0, 0, 255, 0.2)',
-              line = list(color = 'rgba(0, 0, 255, 0.2)')) %>%
-  
-  layout(title = "Predicted Depth with 95% Confidence Intervals",
-         xaxis = list(title = "Datetime"),
-         yaxis = list(title = "Depth"))
-
-plot_depth_ci %>% print()
-
-```
-
-
-# confidence interval in the X dimension
-```{r}
-
-# confidence interval in X 
-interpolated_smoothed_navigation %>% 
-  ggplot(aes(x = datetime)) +
-  geom_ribbon(aes(ymin = LON2_lower, ymax = LON2_upper), fill = "lightgreen", alpha = 0.5) +
-  geom_line(aes(y = LON2), color = "green") +
-  labs(title = "Predicted Longitude with 95% Confidence Intervals",
-       x = "Datetime",
-       y = "Longitude") +
-  theme_minimal()
-
-# confidence interval in Y
-interpolated_smoothed_navigation %>% 
-  ggplot(aes(x = datetime)) +
-  geom_ribbon(aes(ymin = LAT2_lower, ymax = LAT2_upper), fill = "lightcoral", alpha = 0.5) +
-  geom_line(aes(y = LAT2), color = "red") +
-  labs(title = "Predicted Latitude with 95% Confidence Intervals",
-       x = "Datetime",
-       y = "Latitude") +
-  theme_minimal()
-
+saveWidget(plot3d, paste0( "C:/Users/06169774/OneDrive - Nord universitet/BIIGLE-video-epifaunal-density-estimation/", "3D Navigation_name ", ".html") )
 
 
 ```
@@ -409,9 +304,7 @@ attach the smoothed XY and the interpolated depth to the navigation
 ```{r}
 
 
-write_csv( interpolated_smoothed_navigation, paste0(wd,"/nav/smoothed_",navigation_file))   
+write_csv( interpolated_smoothed_navigation , paste0(wd,"/nav/smoothed_",navigation_file))   
 
-#####ADDITION: In case smoothing is not desired or should be ommited, activate following steps to retrieve the raw coordinates
-###positions %>% rename(depth_interpolated = DEPTH2, videotime_interpolated = VIDEOTIME2 ) -> non_smoothed_navigation
-###write_csv( non_smoothed_navigation, paste0(wd,"/nav/smoothed_",navigation_file))  
+
 ```
