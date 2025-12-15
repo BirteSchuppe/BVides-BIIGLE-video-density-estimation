@@ -1,3 +1,7 @@
+This work is licensed under <a href="https://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 International</a><img src="https://mirrors.creativecommons.org/presskit/icons/cc.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;"><img src="https://mirrors.creativecommons.org/presskit/icons/by.svg" alt="" style="max-width: 1em;max-height:1em;margin-left: .2em;">
+
+
+
 # BIIGLE-video-epifaunal-density-estimation .- BVides -
 
 We present a method to calculate epifaunal (binned) species abundance and density along video transects, calculating a strip transect of seabed area (transect length * transect width) derived from geographic position and video data.
