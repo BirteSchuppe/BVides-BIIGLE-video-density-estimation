@@ -10,7 +10,7 @@ We present a method to calculate epifaunal (binned) species abundance and densit
 
 **Input: ** There are two input files needed for the scripts to run.
 1) annotations (csv.): this is the standard Biigle Video annotations csv file with 1-frames annotations ( tracked annotation will not work) and lasers marked regularly, whereas each dot was marked individually using the "point annotation tool".
-2) navigation (csv.): Following data needs to be extracted from the raw data derived from the (ROV) GPS transponder: with time in real-world, time in video, geographic coordinates and depth 8all mandatory) and additionally pitch, roll, yaw, and camera parameters (focal length, sensor size, etc.) can be included but are not being processed- this is the standard Biigle Video navigation csv file with 1-frame navigation data and lasers marked regularly
+2) navigation (csv.): Following data needs to be extracted from the raw data derived from the (ROV) GPS transponder: with time in real-world, time in video, geographic coordinates and depth (all mandatory) and additionally pitch, roll, yaw, and camera parameters (focal length, sensor size, etc.) can be included but are not being processed- this is the standard Biigle Video navigation csv file with 1-frame navigation data and lasers marked regularly
 
 |  datetime| video time | lat | long | depth | other metadata |
 | :---: | :---: | :---: | :---: | :---: | :---: |
