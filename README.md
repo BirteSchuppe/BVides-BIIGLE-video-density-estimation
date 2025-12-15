@@ -32,7 +32,7 @@ This ensures that “frames” and thus time in video is the regulating column f
 
 ***Step 2) smoothing navigation data*** 
 Processes the navigation, to smooth latitude, longitude and depth.
-We chose to fit generalized additive models (GAM) using mgcv::gam function. P-splines 8hich are advantegous for  with smoothing parameter estimation computed by restricted maximum likelihood (REML) and basis dimension k=175.
+We chose to fit generalized additive models (GAM) using mgcv::gam function. P-splines with smoothing parameter estimation computed by restricted maximum likelihood (REML) and basis dimension k=175 are applied.
 To gain consistent frequency of navigation data down to 1 second, the smoothed GAMs were used to predict latitude, longitude and depth. Splines have been used for smoothing noisy GPS data and P-splines are useful for sparse data, making them applicable for unevenly and/or less frequent pinged navigation data. The amount of smoothness in BVides is data-driven by the smoothness selection criterion of REML. Constraining the upper limit of the degrees of freedom (basis dimension k=175) was deemed satisfactory large enough to follow the underlying wigglyness of the trajectory but preventing oversmoothing.
 
 
