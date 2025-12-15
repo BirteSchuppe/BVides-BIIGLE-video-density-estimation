@@ -84,21 +84,19 @@ time_stamps %>%  select( sec_in_video , time_in_video )
 Coordinates must be in meters so they are in the same units as depth 
 
 ```{r}
-### WARNING In case when smoothing is not desired/ommitted in step 2, thus raw coordinates should be used to calculate the distance travelled, one need to replace in codeline 90  (coords =c("xsmoothed","ysmoothed")) with instead c("LON2","LAT2") (interpolated raw coordinates from navigation file) for transformation into UTM.
 
- 
-# latlong to to utm
-traj.sf <-st_as_sf(smoothed_navigation_laser_data ,coords =c("xsmoothed","ysmoothed"),crs="+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
+
+# Transform latitude and longitude to UTM coordinates
+traj.sf <-st_as_sf(smoothed_navigation_laser_data ,coords =c("LON2","LAT2"),crs="+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
 # reproject to UTM 33
-# find out the right UTM zone and convert to it
+# find out the right UTM zone for you transects and convert to it
 traj.sf %<>% st_transform( "+proj=utm +zone=33 +datum=WGS84 +units=m +no_defs")
 # get coordinates 
 traj.sf$geometry %>% st_coordinates() %>% as_tibble() %>% bind_cols(smoothed_navigation_laser_data) -> joint_navigation_annotation_utm
 
-# USE interpolated depth HERE - renaming interpolated to just depth for simplicity
+# re-naming smoothed depth vector (DEPTH2) to just depth for simplicity
 joint_navigation_annotation_utm %>%
-  dplyr::select(X, Y, depth = depth_interpolated)  -> dpoint
-
+  dplyr::select(X, Y, depth = DEPTH2)  -> dpoint
 
 ```
 
@@ -109,9 +107,7 @@ using the dist function from the base R package. It calculate the euclidean dist
 
 ```{r}
 
-# at each point, use coordinates of the previous point ### 
-### ADDITIONAL: for 2D distance travelled: remove "depth2 = depth" and rename distance_3d to distance_2d. The matrix of distance_2d should be adjusted to this:  distance_2d = # put coordinates into a matrix
-           ####matrix(c(X2,Y2,X,Y), ncol = 2, exchange all 3ds with 2ds in codeline 136 and 138
+# at each point, use coordinates of the previous point 
 dpoint %>%
   slice(-n()) %>%  bind_rows(dpoint %>% slice(1),.) %>% 
   rename(X2 = X,Y2 = Y, depth2 = depth) %>%  # USE interpolated depth HERE !!!!!!
@@ -126,16 +122,17 @@ dpoint %>%
                   byrow = TRUE ) %>% 
            # calculate Euclidean distance between two sets of points 
            dist() %>%  as.numeric()) %>% 
-  ungroup() -> dpoints2
+  ungroup() -> dpoint2
 
 
-#cumulated distance travelled 
-dpoints2  %>% 
+
+#cumulated distance travelled ### remove replace_na 0 later, keep only cumsum(distance_3d) replace 3D with 2D 
+dpoint2  %>% 
   mutate(index = 1:nrow(.)) %>% 
   #group_by(index) %>% 
   mutate(distance_travelled = cumsum(distance_3d)) %>% 
   select(distance_travelled ) %>% 
-  bind_cols(dpoints2,. ) -> cumulated_3D_distance_travelled
+  bind_cols(dpoint2,. ) -> cumulated_3D_distance_travelled
 
 
 ```
@@ -143,7 +140,7 @@ dpoints2  %>%
 # print results and export
 
 ```{r}
-## ADDITIONAL: for comparison: exchange all 3Ds with 2Ds
+
 # print the whole transects length/distance travelled
 cumulated_3D_distance_travelled %>% tail(1) %>% pull(distance_travelled) %>% 
   paste0("Distance travelled in 3D: ",.) %>% 
@@ -153,25 +150,13 @@ cumulated_3D_distance_travelled %>% tail(1) %>% pull(distance_travelled) %>%
 cumulated_3D_distance_travelled %>% tail(1) %>% pull(distance_travelled) -> total_distance_travelled
 # add the distance column
 joint_navigation_annotation <- bind_cols(joint_navigation_annotation_utm,
-                                         cumulated_3D_distance_travelled %>% select(distance_3d, distance_travelled) )
+                                         cumulated_3D_distance_travelled %>% select(distance_3d,distance_travelled))
 
 # export the smoothed and calibrated navigation into the 
 joint_navigation_annotation %>%
   write_csv(paste0("./Output/dist_calibrated_smoothed_3d_navigation.csv" ) )
 
 ```
-
-# plot your points in 3d
-
-```{r}
-
-# plot your points in 3d
-
-open3d()
-x <- dpoint$X %>%  scale()
-y <- dpoint$Y %>%  scale()
-depth <-  dpoint$depth %>%  scale() # USE interpolated depth HERE !!!!!!
-plot3d(x, y, depth, col = rainbow(1000))
 
 ```
 
