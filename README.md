@@ -31,15 +31,10 @@ Processes the BIIGLE annotation csv. report to sort any annotations chronically 
 This ensures that “frames” and thus time in video is the regulating column for arranging any annotations and not as observed initially, the column “created_at”.  
 
 ***Step 2) smoothing navigation data*** 
-Processes the navigation, to firstly create missing datapoints to 1 second frequency by basic interpolation (with "na.approx"  function of the "zoo" package). 
-Secondly, we chose to fit a cubic smoothing spline (stats::smooth.spline function) to the longitude and latitude data. Depth is not smoothed since it was considered to be precise enough.
-WARNING: The resulting smoothed curve of longitude and latitude positions can be varying, depending which fitting method is used. 
-Choice of numerical values for smoothing is highly dependent on the desired outcome of the analysis.
-To fit the cubic smoothing spline, one can 1) set the numerical smoothing parameter df, spar or lamda by own choice 
-OR 2) let the model compute the smoothing parameter objectively by ordinary leave-one-out or generalized’ cross-validation (GCV), so that one do not need to find smoothing parameters on their own.
-Resulting smoothed latitude and longitude vectors can be assessed via the computed cross validation score, depending on cross-validation method applied above.  
-Further explanation are given in the script.
-ALTERNATIVE: Smoothing can be completely omitted if desired, in this case one needs to drop the code chunck where smoothing is applied and additionally active codelines at the end of step 2 (codeline 230), for further description see script 2.
+Processes the navigation, to smooth latitude, longitude and depth.
+We chose to fit generalized additive models (GAM) using mgcv::gam function. P-splines 8hich are advantegous for  with smoothing parameter estimation computed by restricted maximum likelihood (REML) and basis dimension k=175.
+To gain consistent frequency of navigation data down to 1 second, the smoothed GAMs were used to predict latitude, longitude and depth. Splines have been used for smoothing noisy GPS data and P-splines are useful for sparse data, making them applicable for unevenly and/or less frequent pinged navigation data. The amount of smoothness in BVides is data-driven by the smoothness selection criterion of REML. Constraining the upper limit of the degrees of freedom (basis dimension k=175) was deemed satisfactory large enough to follow the underlying wigglyness of the trajectory but preventing oversmoothing.
+
 
 ***Step 3) Biigle video laser calibration*** 
 Processes the arranged BIIGLE annotation file, to extract regular laser annotation (here every 10 seconds) for scaling image width and convert to seabed strip transect width.
