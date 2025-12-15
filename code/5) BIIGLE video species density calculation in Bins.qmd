@@ -60,7 +60,7 @@ navigation_data <- mutate(navigation_data, bin = binned_numbers)
 
 
 navigation_data %>%
-  write_csv(paste0(wd,"/Output/bins_dist_calibrated_smoothed_3D_navigation.csv" ) )
+  write_csv(paste0(wd,"/Output/bins_dist_calibrated_smoothed_3D_steep3.csv" ) )
 
 
 
@@ -76,8 +76,8 @@ navigation_data %>%
 # show the average width in each bin 
 navigation_data %>%  group_by(bin) %>% 
   summarise(n = n(), 
-            # caluculate the mean depth in each bin
-            mean_depth = mean(depth_interpolated, na.rm = TRUE),
+            # caluculate the mean depth in each bin take DEPTH2 for smoothed and only original depth for non-smoothed
+            mean_depth = mean(DEPTH2, na.rm = TRUE),
             # and the width
             mean_width = mean(width, na.rm = TRUE),
   ) %>% 
@@ -159,7 +159,7 @@ Load Data set We will start by loading the output from a previous script that re
 
 ```{r}
 # open the table of annotations
-arranged_annotations_file <-  paste0(wd,"/annotations/","arranged_generic_annotation.csv" )
+arranged_annotations_file <-  paste0(wd,"/annotations/","arranged_annotations_steep3.csv" )
 read_csv(arranged_annotations_file) -> arranged_biigle_annotations 
 ```
 
@@ -209,9 +209,9 @@ time_stamps  %>%  left_join(arranged_biigle_annotations, . ,by , suffix = c(".an
 
 
 # add the navigation 
-# attach the width of the seabed to the dataset
+# attach the width of the seabed to the dataset exchange DEPTH2 with original depth for non-smoothed
 arranged_biigle_annotations_timestamps %>%
-  left_join(navigation_data %>% select(X,Y,depth = depth_interpolated,width,   datetime , bin ),
+  left_join(navigation_data %>% select(X,Y,depth = DEPTH2,width,   datetime , bin ),
             by = c("datetime" = "datetime")) -> dataset
 
 ```
@@ -278,7 +278,7 @@ Species Abundance Export the table of species abundance per bin.
 
 ```{r}
 bins_df %>% 
-  write_csv(paste0("../Output/",bin_size,"bins_species_abundances_annotations.csv"))
+  write_csv(paste0("../Output/",bin_size,"bins_species_abundances_annotations_steep3_3Dsmoothed.csv"))
 ```
 
 ###Species Density Calculate the density of each species in each bin based on surface area.
@@ -292,7 +292,7 @@ bins_df_density <- bins_df %>%
   
 # export tables of species densities per bin
 bins_df_density %>% 
-  write_csv(paste0(wd,"/Output/",bin_size,"bins_species_densities_annotations.csv"))
+  write_csv(paste0(wd,"/Output/",bin_size,"bins_species_densities_annotations_steep3_3Dsmoothed.csv"))
 
 ### calculate total species density of total transect area
 ### first calculate total surface from previous calculated average_image_width multiplied with total_distance_travelled value. IMPORTANT: to get the average image width variable, this needs to be first computed in script 3!
@@ -314,7 +314,7 @@ total_df_density %>% select(-bin) %>%
 
 ### export tables of species density
 total_df_density  %>% 
-  write_csv(paste0(wd,"/Output/","species_densities_annotations.csv")) 
+  write_csv(paste0(wd,"/Output/","species_densities_annotations_steep3_3Dsmoothed.csv")) 
 
 ```
 
