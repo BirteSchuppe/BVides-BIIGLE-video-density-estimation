@@ -49,7 +49,7 @@ Framegrab laser scale (in meters) = physical laser scale distance (in meters) / 
 Consequently, the framegrab image width is calculated by multiplying the framegrab laser scale (in meters) with the image width in pixels (derived from the image properties described, 1920 pixels for HD videos)
 The Y-dimension (image height) is not calibrated. Because the oblique angle of the (ROV) camera, the distance to the farther reach of the image is difficult to reliably measure with the 2-dot laser scale. Besides the visibility does not always allow the back of image to be exploited.
 Thus we strongly advise not to use image height it to calculate the seabed area if oblique videos are applied.
-The resulting width of view is then interpolated between the 10s measurements to match and further being joined to the frequency of the navigation (1s) with the “na.approx” function in the “zoo” package.
+The resulting width of view is then interpolated between the 10s measurements to match and further being joined to the frequency of the navigation (1s) with the “na.approx” function in the “zoo” package.frame grab width in meters can be interpolated with BVides between the 10 seconds annotations to match the frequency of the navigation (1 second) with the “na.approx” function in the R “zoo” package
 
 ***Step 4) Biigle video 3D distance travelled*** 
 Processes the interpolated smoothed navigation data to calculate the total distance travelled of the video strip transect. 
