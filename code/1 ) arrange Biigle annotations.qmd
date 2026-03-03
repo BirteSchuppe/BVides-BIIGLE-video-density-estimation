@@ -10,7 +10,7 @@ format:
 
 ## Setup
 
-Before beginning, we will load necessary libraries.
+Before beginning, we will load necessary libraries and set symbolic pathways 
 
 ```{r}
 
