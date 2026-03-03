@@ -16,17 +16,19 @@ Before beginning, we will load necessary libraries.
 
 library(tidyverse)
 
+# setting the current working directory as base path - you can customize it to your needs   
 getwd() -> wd
 # delete the "code" part of the pathway so that the rest of the path are not relative to the code directory
 wd <- str_remove(wd, "/code") 
 
-# set the working directory to the directory above "code"
-setwd(wd)
+# set the working directory to the directory above "code" - it will only change anything if you have set a custom wd
+setwd(wd) 
 
 # list the csv tables and print their names
 list.files(paste0( wd,"/annotations"), pattern = ".csv$" ) %>% 
-# exclude the "arranged" pattern 
-str_subset("arranged", negate = T)  %>%  paste0("\n avialable CSV tables: \n",.) %>% cat
+# exclude the "arranged" pattern - it will be used in files geerated by this code 
+str_subset("arranged", negate = T)  %>%  paste0("\n avialable CSV tables:  \n ",.," \n") %>% cat()
+ 
 
 ```
 
@@ -36,9 +38,6 @@ str_subset("arranged", negate = T)  %>%  paste0("\n avialable CSV tables: \n",.)
 
 generic_annotation_file <- "generic_annotation.csv"
 read_csv( paste0(wd,"./annotations/",generic_annotation_file )  ) -> All_annotations
-  
-
-
 
 ```
 
@@ -48,15 +47,15 @@ Sorting annotations chronically by time in video, represented by chronically ord
 
 ```{r}
 
-
 All_annotations %>%
-  # make frame to numerical
+  # make frame to numerical value by removing the brackets, replacing "null" with "0", 
   mutate(frame_new =    frames %>% str_sub( 2, -2)  %>% 
            str_replace("null",replacement = "0") %>% 
            str_split(pattern = ",") %>%
+           # splitting by comma and taking the first value (in case there are multiple values separated by commas) - Biigle does this with tracked annotations 
            map_vec(~head(.x,1) %>% as.numeric)) -> All_annotations
 
-# sort per image frame 
+# sort per image frame, so in order of appearence in the video
 All_annotations %>%  arrange(frame_new) -> All_annotations
  
 

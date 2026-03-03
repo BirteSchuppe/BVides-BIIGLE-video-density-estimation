@@ -24,6 +24,7 @@ library(zoo) # for interpolations
 library(plotly) # for interactive plots 
 library(tidyverse)
 library(magrittr) 
+library(htmlwidgets) # for creating interactive html plots
 library(mgcv)
 
 
@@ -48,10 +49,17 @@ open the table with time and xy positions, here maybe need to change/delete work
 (linked to my local drive) setwd("D:/PHD/ROV/ROV raw video density estimates/navigation_smoothing")
 
 ```{r}
-
+# set your navigation file name, 
 navigation_file <- "Generic_navigation_generic.csv"
+print(paste0("loading navigation file: ", navigation_file))
 read_csv(paste0(wd,"/nav/",navigation_file) ) -> navigation
 
+# order columns for consistency - discard the ones you wont use
+navigation %>% select(datetime, videotime,lat, lon,  depth) -> navigation
+
+# show what navigation you are loading 
+navigation %>% head() %>%  print()
+ 
 ```
 
 # set the time column
@@ -143,8 +151,8 @@ The zoo::na.approx function is part of the zoo package in R, which is designed f
 
 # add the new coordinates to the table 
 tibble( xsmoothed = smooth_x ,
-        ysmoothed = smooth_y,
-        depthsmoothed =smooth_z )  %>%
+        ysmoothed = smooth_y ,
+        depthsmoothed = smooth_z )  %>%
   bind_cols(positions,.)  -> smoothed_navigation
  
 # create the missing time stamps so that you have a reading at each second 
@@ -189,47 +197,75 @@ if(any(is.na(interpolated_smoothed_navigation$LON2)) | any(is.na(interpolated_sm
 plot3d <- plot_ly() %>%
   # make smaller point size
   add_trace( data = interpolated_smoothed_navigation,
-            x = ~lon, y = ~lat, z = ~(-depth),
-            mode = "markers", type = "scatter3d", name = "un-smoothed ", marker = list(size = 3), 
+             x = ~lon, y = ~lat, z = ~(-depth),
+             mode = "markers", type = "scatter3d", name = "un-smoothed",
+             marker = list(size = 3,color = "blue4"), 
+             # display x y z and datetime when hovering over each point
+             text = ~datetime%>% as.character(),
+             hovertemplate = paste('<b>Lon</b>: %{x}',
+                                   '<br><b>Lat</b>: %{y}',
+                                   '<br><b>Depth</b>: %{z}',
+                                   '<br><b>Time</b>: %{text}',sep = "" )
+  ) %>%
+  # use the smoothed XYZ to plot the track
+  add_trace( data = interpolated_smoothed_navigation,
+             x = ~lon, y = ~lat, z = ~(-depth),
+             mode = "line", type = "scatter3d", name = "Track - un-smoothed ",
+             line = list(size = 4, color = "cyan") , 
+             # display x y z and datetime when hovering over each point
+             text = ~datetime%>% as.character(),
+             hovertemplate = paste('<b>Lon</b>: %{x}',
+                                   '<br><b>Lat</b>: %{y}',
+                                   '<br><b>Depth</b>: %{z}',
+                                   '<br><b>Time</b>: %{text}',sep = "" )
+  ) %>%
+  
+  # add the GAM smoothed
+    add_trace(x = interpolated_smoothed_navigation$LON2,
+              y = interpolated_smoothed_navigation$LAT2,
+              z = - interpolated_smoothed_navigation$DEPTH2,
+              mode = "markers", type = "scatter3d", name = "GAM smoothed with p-spline ",
+              marker = list(size = 3, color = "tomato"), 
+              # display x y z and datetime when hovering over each point
+              text = ~datetime%>% as.character(),
+              hovertemplate = paste('<b>Lon</b>: %{x}',
+                                    '<br><b>Lat</b>: %{y}',
+                                    '<br><b>Depth</b>: %{z}',
+                                    '<br><b>Time</b>: %{text}',sep = "" )
+    )  %>% 
+    # plot hte smoothed track as well 
+  add_trace(x = interpolated_smoothed_navigation$LON2,
+            y = interpolated_smoothed_navigation$LAT2,
+            z = - interpolated_smoothed_navigation$DEPTH2,
+            mode = "lines", type = "scatter3d", name = "Track - GAM smoothed with p-spline",
+            line = list(size = 4, color = "orange"), 
             # display x y z and datetime when hovering over each point
             text = ~datetime%>% as.character(),
-               hovertemplate = paste('<b>X</b>: %{x}',
-                        '<br><b>Y</b>: %{y}',
-                        '<br><b>Depth</b>: %{z}',
-                        '<br><b>Time</b>: %{text}',sep = "" )
-            ) %>%
-    add_trace( data = interpolated_smoothed_navigation,
-            x = ~lon, y = ~lat, z = ~(-depth),
-            mode = "line", type = "scatter3d", name = "un-smoothed ", line = list(size = 4) ) %>%
-  
-  # use the smoothed XYZ
-  add_trace(x = interpolated_smoothed_navigation$LON2, y = interpolated_smoothed_navigation$LAT2, z = - interpolated_smoothed_navigation$DEPTH2, mode = "lines", type = "scatter3d", name = " GAM smoothed with p-spline ") %>%
-    add_trace(x = interpolated_smoothed_navigation$LON2, y = interpolated_smoothed_navigation$LAT2, z = - interpolated_smoothed_navigation$DEPTH2, mode = "markers", type = "scatter3d", name = "GAM smoothed with p-spline ",
-               marker = list(size = 3) ) %>%
-  
-
-  
+            hovertemplate = paste('<b>Lon</b>: %{x}',
+                                  '<br><b>Lat</b>: %{y}',
+                                  '<br><b>Depth</b>: %{z}',
+                                  '<br><b>Time</b>: %{text}',sep = "" )
+  ) %>%
+ 
   # plot parameters 
   layout(title = "Difference of un-smoothed and smoothed & interpolated ROV transect",
          scene = list(xaxis = list(title = "Longitude"),
                       yaxis = list(title = "Latitude"),
                       zaxis = list(title = "Depth")))  
 
-
+# view the plot locally 
 plot3d %>% print()  
 
-library(htmlwidgets)
-
-
-saveWidget(plot3d, paste0( "C:/Users/06169774/OneDrive - Nord universitet/BIIGLE-video-epifaunal-density-estimation/", "3D Navigation_steep3 ", ".html") )
+# export it as a standalone object that you can share without the rest of the code
+saveWidget(plot3d, paste0(wd, "/Output/figures/", "3D Navigation_steep3 ", ".html") )
 
 
 ```
 
 
-# export
+# Export
 
-attach the smoothed XY and the interpolated depth to the navigation
+Attach the smoothed XY and the interpolated depth to the navigation
 
 ```{r}
 
