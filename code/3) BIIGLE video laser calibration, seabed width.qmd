@@ -22,6 +22,7 @@ Also input the parameters (resolution) of the images and the laser scale in mete
 library(tsibble)
 library(zoo) # for interpolations
 library(gridExtra)
+library(jsonlite)
 library(magrittr)
 library(tidyverse)
 
@@ -35,10 +36,11 @@ setwd(wd)
 # the properties of the images and laser scale? 
 # MAKE SURE IT IS CORRECT FOR YOUR STUDY!!!!!! 
   
-ROV_imageproperties <- tibble( width = 1920, 
-                       height = 1080, 
-                       nb_pxl = 1920 * 1080 , 
-                       laserscaledist_m = 0.075 ) # in meters (not cm)
+ROV_imageproperties <- tibble( 
+                       laserscaledist_m = 0.075, # in meters (not cm)
+                       # set the name of the label you used for the lasers 
+                       laser_label =  "Lasers ON" # most commonly "Laser points" but check your annotation file and change if needed 
+                       )  
 
 ```
 
@@ -54,6 +56,21 @@ read_csv ( paste0(wd,"/nav/smoothed_",navigation_file) )   -> smoothed_navigatio
 # import annotations files 
 read_csv( paste0(wd,"/annotations/arranged_",generic_annotation_file )  ) -> annotation_data
 
+# extrac the width and height of the image from the attributes column of the annotation data - this is where you should have the image properties if you have put them in the attributes column in Biigle
+annotation_data %>% 
+  select(attributes) %>%
+  mutate(attributes = map(attributes, ~ jsonlite::fromJSON(.x))) %>%
+  unnest_wider(attributes)  -> attributes_df
+
+# bind the width and height to the annotations data
+attributes_df %>% select(width,height) %>%  bind_cols(annotation_data,.) %>% 
+  select(-attributes ) -> annotation_data # remove attributes column as it is no longer needed and can be quite fat if you are using metadata
+  
+# bind the width and height to the ROV_imageproperties table - this will be used later to calculate the width and height of the images in meters
+ROV_imageproperties %>% bind_cols(attributes_df %>% select(width,height) %>% distinct()) -> ROV_imageproperties
+
+print(ROV_imageproperties)
+
 ```
 # Processing metadata
 
@@ -63,7 +80,6 @@ read_csv( paste0(wd,"/annotations/arranged_",generic_annotation_file )  ) -> ann
  
 # extract the first line of nav as the starttime - need to import the metadata as nav
 
-
 # this should be where the start time is   
 smoothed_navigation_data %>% filter( videotime_interpolated == 0 ) %>% pull(datetime)
   
@@ -72,6 +88,13 @@ video_starttime <- smoothed_navigation_data %>% slice(1) %>% pull(datetime)
 # load Biigle annotations 
 # The laser point annotations must be unique to each laser points - 
 # tracked annotations (more that one time stamps ) will not work 
+
+annotation_data %>% filter(  label_name == laser_label) -> annotation_data
+
+!!! makke it work in cases when you have other types of annotaitons (polygons and such)
+
+
+# make sure this rem
 
 # first and last frame of each annotation 
 annotation_data %<>%

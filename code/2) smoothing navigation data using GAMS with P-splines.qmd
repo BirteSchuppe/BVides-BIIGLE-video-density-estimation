@@ -36,21 +36,25 @@ wd <- str_remove(wd, "/code")
 # set the working directory to the directory above "code"
 setwd(wd)
 
-# list the csv tables and print their names
-list.files(paste0( wd,"/nav"), pattern = ".csv$" ) %>% 
-# exclude the "arranged" pattern 
-str_subset("smoothed", negate = T)  %>%  paste0("\n avialable CSV tables: \n",.) %>% cat
+# list the csv and txt tables and print their names.
+list.files(paste0( wd,"/annotations"), pattern = ".csv$" ) 
+# look for files that end with .csv or .txt 
+list.files(paste0( wd,"/nav"), pattern = ".csv$|.txt$" ) %>% 
+
+# exclude the "arranged" pattern - it will be used in files geerated by this code
+str_subset("smoothed", negate = T)  %>% 
+  paste(., collapse = "\n - ") %>% 
+  paste0("Avialable CSV tables: \n - ",.,"\n") %>% cat()
 
 ```
 
 # Load data
 
-open the table with time and xy positions, here maybe need to change/delete working direction???
-(linked to my local drive) setwd("D:/PHD/ROV/ROV raw video density estimates/navigation_smoothing")
+open the table with time and xy positions,  
 
 ```{r}
 # set your navigation file name, 
-navigation_file <- "Generic_navigation_generic.csv"
+navigation_file <- "navigation_ROV16.txt"
 print(paste0("loading navigation file: ", navigation_file))
 read_csv(paste0(wd,"/nav/",navigation_file) ) -> navigation
 
@@ -78,14 +82,17 @@ navigation %>%
 
 # check that datetime is a datetime object
 # if class of datetime is not "POSIXct" or "POSIXt" then convert it
-if(!class(positions$datetime)[1] %in% c("POSIXct", "POSIXt"))  {
+if(class(positions$datetime)[1] %in% c("POSIXct", "POSIXt")) {
+  "datetime is valid" %>% print()
+}else if(!class(positions$datetime)[1] %in% c("POSIXct", "POSIXt"))  {
   print("setting datetime to POSIXt")
   positions %>%  mutate( datetime = dmy_hms(datetime)) -> positions
-}
-
-# check that the time column is in the right format
+} else { # send a warning if this fails. 
+  # check what format your time column is in 
 positions %>% 
   select(datetime) %>% glimpse
+    stop("cannot read the date time column make sure it can be read correctly in lubridate::dmy_hms() function")
+}
 
 # make a time column of elapsed seconds based on column datetime, in case for if videotime (logged via ROV system) is not starting at 0
 positions$elapsed_seconds <- as.numeric(difftime(positions$datetime, positions$datetime[1],units = "secs"))
@@ -153,15 +160,34 @@ The zoo::na.approx function is part of the zoo package in R, which is designed f
 tibble( xsmoothed = smooth_x ,
         ysmoothed = smooth_y ,
         depthsmoothed = smooth_z )  %>%
-  bind_cols(positions,.)  -> smoothed_navigation
+  bind_cols(positions,.) %>%
+  select(datetime, videotime,lon,lat, depth, elapsed_seconds,xsmoothed, ysmoothed,depthsmoothed )  -> smoothed_navigation
  
-# create the missing time stamps so that you have a reading at each second 
-smoothed_navigation %>%
-  select(datetime, videotime,lon,lat, depth, elapsed_seconds,xsmoothed, ysmoothed,depthsmoothed ) %>% 
-  add_row(. , datetime  = .$datetime[1] + 1  , .before = 2) %>% 
-  as_tsibble(index = datetime) %>%
-  fill_gaps() %>% # automatically creates the missing timestamps
+# time interval check - if there are missing time stamps, create them and predict the coordinates for those time stamps as well.
+if(all(diff(smoothed_navigation$elapsed_seconds) == 1)) {
+    print("No missing time stamps, no need to fill gaps")
+  smoothed_navigation_filled <- smoothed_navigation
+# create the missing time stamps so that you have a reading at each second   
+} else if(any(diff(smoothed_navigation$elapsed_seconds) == 1)) {
+  print("missing 1s intervals - filling up the gaps" )
+  smoothed_navigation %>% 
+    as_tsibble(index = datetime) %>%
+  fill_gaps() %>% # automatically creates the missing timestamps at 1s interval
   as_tibble() -> smoothed_navigation_filled
+
+# if the time interval is larger than 1s, create the missing time stamps at 1s interval and predict the coordinates for those time stamps as well.
+} else if(all(diff(smoothed_navigation$elapsed_seconds) > 1) ){ 
+  print("setting time increment to 1s and filling up the gaps" )
+  smoothed_navigation  %>% 
+  add_row(. , datetime  = .$datetime[1] + 1  , .before = 2)  %>% 
+    as_tsibble(index = datetime) %>%
+  fill_gaps() %>% # automatically creates the missing timestamps at 1s interval
+  as_tibble() -> smoothed_navigation_filled
+  
+} else {
+stop("Time interval is not consistent, please check your data and make sure it is in 1s intervals or has a consistent time interval")
+}
+
 
 # make a new time vector for seconds
 t2  <- as.numeric(difftime(smoothed_navigation_filled$datetime, smoothed_navigation_filled$datetime[1],units = "secs"))
@@ -257,7 +283,14 @@ plot3d <- plot_ly() %>%
 plot3d %>% print()  
 
 # export it as a standalone object that you can share without the rest of the code
-saveWidget(plot3d, paste0(wd, "/Output/figures/", "3D Navigation_steep3 ", ".html") )
+#  
+saveWidget(plot3d, paste0(wd, "/Output/figures/",
+                          navigation_file %>% str_remove(pattern = ".csv$|.txt$"),
+                          "3D Navigation_steep3 ", ".html") )
+
+print(paste0("3D plot of smoothed and interpolated navigation data saved as: ", paste0(wd, "/Output/figures/",
+                          navigation_file %>% str_remove(pattern = ".csv$|.txt$"),
+                          "3D Navigation_steep3", ".html") ) )
 
 
 ```

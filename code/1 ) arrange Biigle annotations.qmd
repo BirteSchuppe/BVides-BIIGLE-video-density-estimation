@@ -28,6 +28,8 @@ setwd(wd)
 list.files(paste0( wd,"/annotations"), pattern = ".csv$" ) %>% 
 # exclude the "arranged" pattern - it will be used in files geerated by this code 
 str_subset("arranged", negate = T)  %>%  paste0("\n avialable CSV tables:  \n ",.," \n") %>% cat()
+
+# 
  
 
 ```
@@ -36,8 +38,10 @@ str_subset("arranged", negate = T)  %>%  paste0("\n avialable CSV tables:  \n ",
 
 ```{r}
 
-generic_annotation_file <- "generic_annotation.csv"
+generic_annotation_file <- "Anja_All_annotation_data.csv"
 read_csv( paste0(wd,"./annotations/",generic_annotation_file )  ) -> All_annotations
+
+print(paste0("loading annotation file: ", generic_annotation_file, "  with ", nrow(All_annotations)  ) )
 
 ```
 
