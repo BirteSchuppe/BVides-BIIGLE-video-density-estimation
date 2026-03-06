@@ -87,7 +87,8 @@ navigation %>%
 # if you have a dmy_hms character string
 
 # to read ymd: this is disabled by default - enabled if you are sure that your time column is in ymd format (year/month/day) and not dmy (day/month/year) - this is common when the date is read in as a character string and not automatically converted to a datetime object.
-navigation %>% mutate(datetime = datetime %>% ymd_hms()) -> positions 
+
+# navigation %>% mutate(datetime = datetime %>% ymd_hms()) -> positions 
 
 
 # check that datetime is a datetime object

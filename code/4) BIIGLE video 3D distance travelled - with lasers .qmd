@@ -156,9 +156,10 @@ dpoint2  %>%
 ```{r}
 
 # print the whole transects length/distance travelled
-cumulated_3D_distance_travelled %>% tail(1) %>% pull(distance_travelled) %>% 
-  paste0("Distance travelled in 3D: ",round(.,2)," meters") %>% 
+cumulated_3D_distance_travelled %>% tail(1) %>% pull(distance_travelled) -> v
+  paste0("Distance travelled in 3D: ",round(v,2)," meters") %>% 
   print() 
+  rm(v)
 
 # store total distance travel as own value for calculating total species density along whole distance in 5.2
 cumulated_3D_distance_travelled %>% tail(1) %>% pull(distance_travelled) -> total_distance_travelled

@@ -220,7 +220,7 @@ surface_data %<>%
 # average image width in meters 
 average_image_width <- surface_data$width %>% mean()
 # print the image width
-print(paste0("average image width in meters: ",average_image_width %>% round(digits = 2)))
+print(paste0("average image width in meters: ",average_image_width %>% round(digits = 2)," meters"))
 
 ```
 
