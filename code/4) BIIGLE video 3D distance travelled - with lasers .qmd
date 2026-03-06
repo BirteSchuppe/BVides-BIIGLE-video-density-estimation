@@ -28,7 +28,7 @@ getwd() -> wd
 wd <- str_remove(wd, "/code") 
 
 # set the working directory to the directory above "code"
-setwd(wd)
+#setwd(wd)
 
  
 
@@ -55,15 +55,24 @@ smoothed_navigation_laser_data %>% mutate(filename = "generic_transect" ) %>%
   # put the filename in first place
   relocate(filename,.before = names(smoothed_navigation_laser_data)[1])
 
-#####!!! use the video time interpolated to merge metdata and navigation data !!! at least checks the start_time is 0 seconds in videos
- 
-
-
+# use the video time interpolated to merge metdata and navigation data  
 # this should be where the start time is   
 smoothed_navigation_laser_data %>% filter( videotime_interpolated == 0 ) %>% pull(datetime)
-  
-video_starttime <- smoothed_navigation_laser_data %>% slice(1) %>% pull(datetime)
+ 
 
+#  checks the start_time is 0 seconds in videos
+if(smoothed_navigation_laser_data %>% slice(1) %>% pull(elapsed_seconds) == 0 ) {
+  print("start time is 0 seconds in video, good to go!")
+  video_starttime <- smoothed_navigation_laser_data %>% slice(1) %>% pull(datetime)
+} else {
+  print("start time is not 0 seconds in video, check your data and make sure the start time is correct for calculating distance travelled")
+  smoothed_navigation_laser_data %>% slice(1) %>% pull(datetime) -> v1
+  smoothed_navigation_laser_data %>% slice(1) %>% pull(elapsed_seconds) -> v2
+  video_starttime <- v1 - v2 # calculate the start time by subtracting the elapsed seconds from the datetime of the first row
+  
+  }
+
+ 
 time_stamps <- smoothed_navigation_laser_data  %>%  
   mutate(sec_in_video = seconds(datetime  -  video_starttime   )  %>% seconds_to_period()  ) %>% 
   mutate(time_in_video =sprintf('%02d:%02d:%02d', sec_in_video$hour,sec_in_video$minute, sec_in_video$second) )
@@ -73,7 +82,7 @@ time_stamps %<>%
   mutate( sec_in_video =  sec_in_video %>% seconds() )
 
 # does this look legit? 
-time_stamps %>%  select( sec_in_video , time_in_video )
+time_stamps %>%  select( sec_in_video , time_in_video, datetime  )
 
 
 
@@ -84,13 +93,18 @@ time_stamps %>%  select( sec_in_video , time_in_video )
 Coordinates must be in meters so they are in the same units as depth 
 
 ```{r}
+# print which utm zone should be used by locating the latitude and longitude of the transects - you can use this website to find out the right UTM zone: https://www.latlong.net/lat-long-utm.html
+recomended_utm <- (floor((smoothed_navigation_laser_data$LON2[1] + 180) / 6) %% 60) + 1
+print(paste0("the recommended UTM zone for your transects is: ", recomended_utm, " - check if this is correct and change the code if needed!"))
 
+# TO set the utm zone manually: 
+  recomended_utm <- 33 # change this to the correct UTM zone for your transects, check with the website mentioned above
 
 # Transform latitude and longitude to UTM coordinates
 traj.sf <-st_as_sf(smoothed_navigation_laser_data ,coords =c("LON2","LAT2"),crs="+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
-# reproject to UTM 33
+# re project to UTM 33
 # find out the right UTM zone for you transects and convert to it
-traj.sf %<>% st_transform( "+proj=utm +zone=33 +datum=WGS84 +units=m +no_defs")
+traj.sf %<>% st_transform( paste0( "+proj=utm +zone=",recomended_utm, " +datum=WGS84 +units=m +no_defs") )
 # get coordinates 
 traj.sf$geometry %>% st_coordinates() %>% as_tibble() %>% bind_cols(smoothed_navigation_laser_data) -> joint_navigation_annotation_utm
 
@@ -143,7 +157,7 @@ dpoint2  %>%
 
 # print the whole transects length/distance travelled
 cumulated_3D_distance_travelled %>% tail(1) %>% pull(distance_travelled) %>% 
-  paste0("Distance travelled in 3D: ",.) %>% 
+  paste0("Distance travelled in 3D: ",round(.,2)," meters") %>% 
   print() 
 
 # store total distance travel as own value for calculating total species density along whole distance in 5.2

@@ -10,19 +10,19 @@ We present a method to calculate epifaunal (binned) species abundance and densit
 
 **Input: ** There are two input files needed for the scripts to run.
 1) annotations (csv.): this is the standard Biigle Video annotations csv file with 1-frames annotations ( tracked annotation will not work) and lasers marked regularly, whereas each dot was marked individually using the "point annotation tool".
-2) navigation (csv.): Following data needs to be extracted from the raw data derived from the (ROV) GPS transponder: with time in real-world, time in video, geographic coordinates and depth (positive or negative is up to you, it will work either way) are mandatory 
+2) navigation (csv./.txt): Following data needs to be extracted from the raw data derived from the (ROV) GPS transponder: with time in real-world, time in video, geographic coordinates and depth (positive or negative is up to you, it will work either way) are mandatory 
  NOTE: additionally pitch, roll, yaw, and camera parameters (focal length, sensor size, etc.) can be included but are not being processed- this is the standard Biigle Video navigation csv file with 1-frame navigation data and lasers marked regularly
 
 |  datetime| videotime | lat | lon | depth | other metadata |
 | :---: | :---: | :---: | :---: | :---: | :---: |
 | dmy_hms | hms | dec.deg | dec.deg | (-)meters | XXX |
-| 01/03/2024_16:22:02 | 00:02:31 | 72.5465 | 01.2548 | -600 | "examples" | 
+| 01/03/2024_16:22:02 | 00:00:01 | 72.5465 | 01.2548 | -600 | "examples" | 
 
 Pre-processing of the navigation data can be achieved by selecting relevant data described above, and replace their column names to match the required names in the script: 
 
 
 ***replace the column names here ***
-names(your_raw_navigation)[1:6] <- c("datetime","depth","heading","lon","lat", "videotime")
+names(your_raw_navigation)[1:6] <- c("datetime",, "videotime" ,"lat" "lon", "depth")
 
 **notes**: make sure time columns in your raw data are all in the same time-zones or let R assume they are UTC/your local time zone
 
@@ -36,6 +36,7 @@ This ensures that “frames” and thus time in video is the regulating column f
 Processes the navigation, to smooth latitude, longitude and depth.
 We chose to fit generalized additive models (GAM) using mgcv::gam function. P-splines with smoothing parameter estimation computed by restricted maximum likelihood (REML) and basis dimension k=175 are applied.
 To gain consistent frequency of navigation data down to 1 second, the smoothed GAMs were used to predict latitude, longitude and depth. Splines have been used for smoothing noisy GPS data and P-splines are useful for sparse data, making them applicable for unevenly and/or less frequent pinged navigation data. The amount of smoothness in BVides is data-driven by the smoothness selection criterion of REML. Constraining the upper limit of the degrees of freedom (basis dimension k=175) was deemed satisfactory large enough to follow the underlying wigglyness of the trajectory but preventing oversmoothing. The smoothing model fit (choice of appropriate basis dimension) is provided by computation of effective degrees of freedom value (EDF) and k-index inside the gam.check function. Navigation data are often temporally autocorrelated which any spline will try to track the more degrees of freedom is given. This may be reflected in the parameters EDF and k-index of gam.check smoothing model fit evaluation of the the basis dimension k, thus EDF and k-value should be interpreted carefully respecting this influence.
+
 **notes**: make sure you are reading the right navigation file and that the columns have the right names (see above)
 
 ***Step 3) Biigle video laser calibration*** 
@@ -52,7 +53,8 @@ Consequently, the framegrab image width is calculated by multiplying the framegr
 The Y-dimension (image height) is not calibrated. Because the oblique angle of the (ROV) camera, the distance to the farther reach of the image is difficult to reliably measure with the 2-dot laser scale. Besides the visibility does not always allow the back of image to be exploited.
 Thus we strongly advise not to use image height it to calculate the seabed area if oblique videos are applied.
 The resulting width of view is then interpolated between the 10s measurements to match and further being joined to the frequency of the navigation (1s) with the “na.approx” function in the “zoo” package.frame grab width in meters can be interpolated with BVides between the 10 seconds annotations to match the frequency of the navigation (1 second) with the “na.approx” function in the R “zoo” package
-**notes**: make sure you are using the correct ROV image parameters 
+
+**notes**: make sure you are using the correct ROV image parameters and that the laser points are annotated correctly in BIIGLE. Set the name of the label you used in Biigle for the lasers (default is "Laser points")
 
 ***Step 4) Biigle video 3D distance travelled*** 
 Processes the interpolated smoothed navigation data to calculate the total distance travelled of the video strip transect. 
@@ -78,3 +80,4 @@ Now, the first final output is generated as bins species abundance. Species abun
 The second final output is generated as species density in each bin. To do so, each bins species abundance previously calculated is divided by each bins seabed surface area calculated, providing species bin densities.
 The third final output is calculation of species density along the total transect. To do so, first the total transect seabed surface is calculated from the total three-dimensional distance travelled multiplied with the average seabed width of the whole transect. Then total species abundance is taken from the bins species abundance table, only including the row “all” which is the cumulated sum of species abundance in each bin. 
 Finally, total species density is calculated similar to bin species density, as followed: cumulated sum of bin species abundance divided by total transect seabed surface area.
+**NOTE** : the list of annotation must be strictly limited to the species of interest, thus the list of labels must be reviewed to avoid the inclusion of records whose density is meaningless (low visibility, of gear obstructing the frame... etc)

@@ -34,13 +34,12 @@ getwd() -> wd
 wd <- str_remove(wd, "/code") 
 
 # set the working directory to the directory above "code"
-setwd(wd)
+# setwd(wd)
 
 # list the csv and txt tables and print their names.
-list.files(paste0( wd,"/annotations"), pattern = ".csv$" ) 
+ 
 # look for files that end with .csv or .txt 
 list.files(paste0( wd,"/nav"), pattern = ".csv$|.txt$" ) %>% 
-
 # exclude the "arranged" pattern - it will be used in files geerated by this code
 str_subset("smoothed", negate = T)  %>% 
   paste(., collapse = "\n - ") %>% 
@@ -54,9 +53,17 @@ open the table with time and xy positions,
 
 ```{r}
 # set your navigation file name, 
-navigation_file <- "navigation_ROV16.txt"
+navigation_file <- "Generic_navigation_generic.csv"
 print(paste0("loading navigation file: ", navigation_file))
 read_csv(paste0(wd,"/nav/",navigation_file) ) -> navigation
+
+# are the right columns present in the table?
+if(  all(c("datetime", "videotime", "lat", "lon", "depth") %in% names(navigation) ) 
+){ # confirmed that the required columns are present in the navigation file
+  print("required columns found, loading navigation file")
+}else {
+  print("requried columns not found check read me and make sure your data is in the right format")
+}
 
 # order columns for consistency - discard the ones you wont use
 navigation %>% select(datetime, videotime,lat, lon,  depth) -> navigation
@@ -76,14 +83,20 @@ depending on the formate of your time column and The mood of Excel, you might ne
 # time management
 navigation %>% 
 # make the time column - if you have a data and a time column
-  mutate(datetime = datetime) -> positions
+  mutate(datetime = datetime ) -> positions
 # if you have a dmy_hms character string
+
+# to read ymd: this is disabled by default - enabled if you are sure that your time column is in ymd format (year/month/day) and not dmy (day/month/year) - this is common when the date is read in as a character string and not automatically converted to a datetime object.
+navigation %>% mutate(datetime = datetime %>% ymd_hms()) -> positions 
 
 
 # check that datetime is a datetime object
 # if class of datetime is not "POSIXct" or "POSIXt" then convert it
 if(class(positions$datetime)[1] %in% c("POSIXct", "POSIXt")) {
   "datetime is valid" %>% print()
+}else if(! positions$datetime[1] %>% ymd_hms() %>% is.na()  ) {
+  stop("your date might be in ymd format (year/month/day), try converting it to dmy (day/month/year)")
+  
 }else if(!class(positions$datetime)[1] %in% c("POSIXct", "POSIXt"))  {
   print("setting datetime to POSIXt")
   positions %>%  mutate( datetime = dmy_hms(datetime)) -> positions
@@ -96,6 +109,26 @@ positions %>%
 
 # make a time column of elapsed seconds based on column datetime, in case for if videotime (logged via ROV system) is not starting at 0
 positions$elapsed_seconds <- as.numeric(difftime(positions$datetime, positions$datetime[1],units = "secs"))
+
+ 
+# print the time limits of the file
+positions %>% 
+  select(datetime) %>% 
+  slice(c(1,nrow(.))) %>% 
+  pull() %>%  
+  #convert to character for printing
+   as.character() %>% 
+   # extract the date and time from the string
+   str_extract("\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}") %>% as.vector() -> v
+  print(paste0("time limits of the navigation file: ", extract(v,1), " to ", extract(v,2) ))
+  rm(v)
+
+
+# so lenght of navigation is 
+positions %>% select(datetime) %>%  slice(c(1,nrow(.))) %>% pull() %>% 
+  diff() %>% as.numeric(units = "secs") -> nav_length_seconds
+ print(paste0("length of the navigation file in seconds: ", nav_length_seconds) )
+
 ```
 
 
@@ -217,6 +250,9 @@ if(any(is.na(interpolated_smoothed_navigation$LON2)) | any(is.na(interpolated_sm
 ```
 
 # plot the interpolated smoothed track
+
+**pro tip** : open the interactive plot in a new window. It will be easier to view and interact with the plot  
+
 ```{r}
 
 
@@ -274,7 +310,7 @@ plot3d <- plot_ly() %>%
   ) %>%
  
   # plot parameters 
-  layout(title = "Difference of un-smoothed and smoothed & interpolated ROV transect",
+  layout(title = paste0("Difference of un-smoothed and smoothed & interpolated ROV transect in ", navigation_file %>% str_remove(pattern = ".csv$|.txt$") ),
          scene = list(xaxis = list(title = "Longitude"),
                       yaxis = list(title = "Latitude"),
                       zaxis = list(title = "Depth")))  
@@ -286,11 +322,11 @@ plot3d %>% print()
 #  
 saveWidget(plot3d, paste0(wd, "/Output/figures/",
                           navigation_file %>% str_remove(pattern = ".csv$|.txt$"),
-                          "3D Navigation_steep3 ", ".html") )
+                          "3D Navigation", ".html") )
 
 print(paste0("3D plot of smoothed and interpolated navigation data saved as: ", paste0(wd, "/Output/figures/",
                           navigation_file %>% str_remove(pattern = ".csv$|.txt$"),
-                          "3D Navigation_steep3", ".html") ) )
+                          "3D Navigation", ".html") ) )
 
 
 ```
@@ -303,7 +339,8 @@ Attach the smoothed XY and the interpolated depth to the navigation
 ```{r}
 
 
-write_csv( interpolated_smoothed_navigation , paste0(wd,"/nav/smoothed_",navigation_file))   
+write_csv( interpolated_smoothed_navigation , paste0(wd,"/nav/smoothed_navigation.csv" ))   
+ print(paste0("smoothed navigation data saved as: ", wd,"/nav/smoothed_navigation.csv" ) )
 
 
 ```

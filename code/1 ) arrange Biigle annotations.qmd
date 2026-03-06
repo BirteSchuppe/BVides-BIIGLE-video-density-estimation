@@ -22,14 +22,17 @@ getwd() -> wd
 wd <- str_remove(wd, "/code") 
 
 # set the working directory to the directory above "code" - it will only change anything if you have set a custom wd
-setwd(wd) 
+# setwd(wd) 
 
 # list the csv tables and print their names
-list.files(paste0( wd,"/annotations"), pattern = ".csv$" ) %>% 
-# exclude the "arranged" pattern - it will be used in files geerated by this code 
-str_subset("arranged", negate = T)  %>%  paste0("\n avialable CSV tables:  \n ",.," \n") %>% cat()
 
-# 
+# exclude the "arranged" pattern - it will be used in files geerated by this code 
+list.files(paste0( wd,"/annotations"), pattern = ".csv$" ) %>% 
+# exclude the "arranged" pattern - it will be used in files geerated by this code
+str_subset(pattern = "arranged", negate = T)  %>% 
+  paste(., collapse = "\n - ") %>% 
+  paste0("Avialable annotation CSV tables: \n - ",.,"\n") %>% cat()
+
  
 
 ```
@@ -38,10 +41,14 @@ str_subset("arranged", negate = T)  %>%  paste0("\n avialable CSV tables:  \n ",
 
 ```{r}
 
-generic_annotation_file <- "Anja_All_annotation_data.csv"
+generic_annotation_file <-  "generic_annotation.csv"
+
 read_csv( paste0(wd,"./annotations/",generic_annotation_file )  ) -> All_annotations
 
 print(paste0("loading annotation file: ", generic_annotation_file, "  with ", nrow(All_annotations)  ) )
+
+
+
 
 ```
 
@@ -61,7 +68,39 @@ All_annotations %>%
 
 # sort per image frame, so in order of appearence in the video
 All_annotations %>%  arrange(frame_new) -> All_annotations
+
+
+
+```
+
+### View the filename and video time 
+
+```{r}
+
+if(All_annotations %>% distinct(video_filename) %>% nrow() > 1 ) {
+  print("there are multiple video filenames in the annotation file, are you sure they are continuous?")
+} else {
+  print(paste0("the video filename in the annotation file is: ", All_annotations %>% distinct(video_filename) %>% pull() ) )
+}
+
+# time difference between first and last annotations in seconds
+time_diff <- All_annotations %>% slice(n()) %>% pull(frame_new) - All_annotations %>% slice(1) %>% pull(frame_new)
+print(paste0("time difference between first and last annotation: ", time_diff %>%  round(), " seconds") )
  
+
+```
+### look for a laser label 
+
+```{r}
+
+All_annotations %>% filter( grepl("laser", label_name, ignore.case = T) ) %>% 
+  distinct(label_name) %>% pull() -> laser_label 
+
+if(length(laser_label) == 0 ) { 
+  print("no laser label found in the annotation file, please check your annotation file and make sure there is a label that contains the word 'laser' (case insensitive)")
+} else {
+  print(paste0("the laser label in the annotation file is: ", laser_label ) )
+}
 
 ```
 
@@ -70,8 +109,8 @@ All_annotations %>%  arrange(frame_new) -> All_annotations
 ```{r}
 
 # export re-arranged annotations 
-write_csv(All_annotations, paste0(wd,"/annotations/arranged_",generic_annotation_file )  )
+write_csv(All_annotations, paste0(wd,"/annotations/arranged_annotation_file.csv"   )  )
 
-
+paste0( "exporting arranged annotation file: \n",  wd,"/annotations/arranged_annotation_file.csv \n"   )  %>% cat()
 
 ```

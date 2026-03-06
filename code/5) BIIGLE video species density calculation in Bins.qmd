@@ -26,7 +26,10 @@ library(tidyverse)
 
 getwd() -> wd
 # delete the "code" part of the pathway so that the rest of the path are not relative to the code directory
-wd <- str_remove(wd, "/code") 
+wd <- str_remove(wd, "/code")
+
+# set the working directory to the directory above "code"
+#setwd(wd)
 
 
 # define bins parameters 
@@ -40,11 +43,13 @@ bin_size <- 50
 
 ## Load navigation data
 
-Next, we load the image calibration data to assist in calculating the seabed surface width.
+Next, we load the image calibration (from script 4) data to assist in calculating the seabed surface width.
 
 ```{r}
-# open image calibration info to calculate the bin surface
+# open image calibration  info to calculate the bin surface
 paste0(wd,"/Output/dist_calibrated_smoothed_3d_navigation.csv" ) %>%  read_csv() -> navigation_data
+
+
 
 ```
 
@@ -55,16 +60,11 @@ To analyze how species density changes along the video transect, we split the da
 ```{r}
 # create bins of 50m distance travelled 
 breaks <- seq(0, max(navigation_data$distance_travelled) + bin_size, by = bin_size)
-binned_numbers <- cut(navigation_data$distance_travelled, breaks = breaks, include.lowest = TRUE)
+binned_numbers <- cut(navigation_data$distance_travelled, breaks = breaks, include.lowest = TRUE, dig.lab = 6)
 navigation_data <- mutate(navigation_data, bin = binned_numbers) 
 
-
 navigation_data %>%
-  write_csv(paste0(wd,"/Output/bins_dist_calibrated_smoothed_3D_steep3.csv" ) )
-
-
-
-
+  write_csv(paste0(wd,"/Output/bins_dist_calibrated_smoothed_3D.csv" ) )
 
 ```
 
@@ -106,7 +106,7 @@ mycolors <- colorRampPalette(brewer.pal(12, "Set3"))(nb.cols)
 
 bins_metadata %>% 
   # remove the first line (all bins)
-  filter(bin != "All(0,950]") %>%
+    filter(bin %>%  str_detect(pattern = "All",negate = T) ) %>% 
   # make the Bin column a factor
   mutate(bin = factor(bin, levels = unique(bin))) %>%
   ggplot(aes(x = bin, y = - mean_depth, fill = bin)) +
@@ -123,7 +123,7 @@ bins_metadata %>%
 # same plot for the  width
 bins_metadata %>% 
   # remove the first line (all bins)
-  filter(bin != "All(0,950]") %>%
+    filter(bin %>%  str_detect(pattern = "All",negate = T) ) %>% 
   # make the Bin column a factor
   mutate(bin = factor(bin, levels = unique(bin))) %>%
   ggplot(aes(x = bin, y = mean_width, fill = bin)) +
@@ -157,13 +157,26 @@ plot_bins_metadata_combined
 
 Load Data set We will start by loading the output from a previous script that recorded the distance traveled in BIIGLE annotations.
 
+Take a look at the taxa list and make sure they are all species records. Some labels may refer to objects or event whose density is not meaningful 
+
 ```{r}
 # open the table of annotations
-arranged_annotations_file <-  paste0(wd,"/annotations/","arranged_annotations_steep3.csv" )
+arranged_annotations_file <- paste0(wd,"/annotations/arranged_annotation_file.csv"  ) 
 read_csv(arranged_annotations_file) -> arranged_biigle_annotations 
+
+# show a list of the label_name and advise the users to delete the annotations that are not species records 
+
+arranged_biigle_annotations %>% distinct(label_name) %>% pull() %>% 
+  paste(., collapse = "\n - ") %>% 
+  paste0("Available label names in the annotations: \n - ",.,"\n") %>% cat()
+
+
+
 ```
 
-We attach the width of the seabed to the dataset using a left join.
+first and last frames for each annotations 
+
+Here, there is a check to remove annotations that are longer than 10s 
 
 ```{r}
 
@@ -183,13 +196,34 @@ arranged_biigle_annotations %<>%
 # make a start and end second for each annotation
 arranged_biigle_annotations %<>%
   mutate( startsec = startframe %>% seconds() %>% floor, 
-          endsec = endframe %>% seconds() %>% floor)
+          endsec = endframe %>% seconds() %>% floor) %>% 
+  # add a colum of time between startsec and endsec 
+  mutate(record_duration = endsec - startsec )  
 
-arranged_biigle_annotations %>% select(endsec, startsec, frames)  
+# check if some tracked annotaitons are longer than 10s 
+arranged_biigle_annotations %>%  
+  filter(record_duration > 10 ) -> long_annotations
 
+if(nrow(long_annotations) > 0 ) { 
+  
+  arranged_biigle_annotations %>% select(label_name, startsec, endsec, record_duration) %>%  arrange(record_duration %>%  desc) %>% print()
+
+   
+  print("There are annotations that last longer than 10 seconds, please check if they are valid and if not, consider removing them from the dataset - they will mess with the bins")
+  
+}
+
+  arranged_biigle_annotations %<>% filter(record_duration <= 10 )
+
+```
+
+### view your annotations along the navigation line with plotly
+
+```{r}
 
 
 ```
+
 
 ### Join the arranged BIIGLE annotations to the navigation
 
@@ -200,6 +234,7 @@ time_stamps <- navigation_data  %>%
   select(datetime) %>% 
   mutate(sec_in_video = seconds(datetime  -  video_starttime   )  %>% seconds_to_period()  ) %>% 
   mutate(time_in_video =sprintf('%02d:%02d:%02d', sec_in_video$hour,sec_in_video$minute, sec_in_video$second) )
+
 # change format of time column in navigation table
 time_stamps %<>% 
   mutate( sec_in_video =  sec_in_video %>% seconds() )
@@ -224,6 +259,8 @@ Calculate the number of occurrences of each species within each bin.
 
 ```{r}
 bins_list <- list()
+
+dataset %>% distinct(bin) %>% pull() -> unique_bins
 
 for (i in unique(dataset$bin)){
   bin.i <- dataset %>% filter(bin == i)
@@ -270,6 +307,15 @@ plot_ly(dataset, x = ~X, y = ~Y, z = ~-depth,
   layout(title = "XY Depth in 3D with Bin Color") 
 
 
+            !!! make a better plot !!! 
+
+           text = ~datetime%>% as.character(),
+            hovertemplate = paste('<b>Lon</b>: %{x}',
+                                  '<br><b>Lat</b>: %{y}',
+                                  '<br><b>Depth</b>: %{z}',
+                                  '<br><b>Time</b>: %{text}',sep = "" )
+
+
 ```
 
 ### Exporting Data
@@ -278,27 +324,55 @@ Species Abundance Export the table of species abundance per bin.
 
 ```{r}
 bins_df %>% 
-  write_csv(paste0("../Output/",bin_size,"bins_species_abundances_annotations_steep3_3Dsmoothed.csv"))
+  write_csv(paste0("../Output/",bin_size,"mbins_species_abundances_annotations_3Dsmoothed.csv"))
 ```
 
 ###Species Density Calculate the density of each species in each bin based on surface area.
 
-```{r}
-bins_df_density <- bins_df %>%
-  select(-bin) %>%
-  map(~ .x / bins_metadata$bin_surface) %>%
-  bind_cols(bins_df %>% select(bin))  
+ The density is calculated by dividing the abundance of each species in a bin by the surface area of that bin, which is derived from the average width and the bin size. The resulting table of species densities per bin is then exported as a CSV file.
  
+ If a bin is empty, it is filled with 0 values for all species.
+
+```{r}
+bins_df_density <- list()
+for (i in seq(bins_metadata$bin)) {
+  bins_metadata$bin[i]
+  # metadata for that bin
+  bins_metadata %>% filter(bin == bins_metadata$bin[i]) -> bin_metadata
   
+  if(bins_df %>% filter(bin == bins_metadata$bin[i]) %>% nrow() == 0) {
+    print(paste("bin", bins_metadata$bin[i], "is empty so it is filled with 0"))
+    # make an empty table with the same columns as bins_df but with 0 valuesle
+    tibble(bin = bins_metadata$bin[i]) %>% 
+      bind_cols( tibble(  map_dfc(bins_df %>% select(-bin), ~ 0) ) ) -> d
+    # put it in the table
+    bins_df_density[[i]] <- d
+    
+  next
+  }
+  
+  # for bins where there is stuff, calculate the density by dividing the abundance by the surface area of the bin 
+  bins_df %>%
+    filter(bin == bins_metadata$bin[i])  %>% 
+    select(-bin) %>% 
+    map(~ .x / bin_metadata$bin_surface ) %>% 
+    bind_cols(bin_metadata %>% select(bin) ,.) -> d
+  
+  bins_df_density[[i]] <- d  
+  
+}
+
+bins_df_density %>% bind_rows() -> bins_df_density
+
 # export tables of species densities per bin
 bins_df_density %>% 
-  write_csv(paste0(wd,"/Output/",bin_size,"bins_species_densities_annotations_steep3_3Dsmoothed.csv"))
+  write_csv(paste0(wd,"/Output/",bin_size,"mbins_species_densities_annotations_3Dsmoothed.csv"))
 
 ### calculate total species density of total transect area
 ### first calculate total surface from previous calculated average_image_width multiplied with total_distance_travelled value. IMPORTANT: to get the average image width variable, this needs to be first computed in script 3!
 
 total_surface <- total_distance_travelled*average_image_width
-print(total_surface)
+print(paste0("total surface of the transect: ", total_surface %>% round(digits = 2), " m2") )
 
 ### select row containing cumulated species occurences along whole transect
 total_df_density <- bins_df %>%
@@ -314,7 +388,7 @@ total_df_density %>% select(-bin) %>%
 
 ### export tables of species density
 total_df_density  %>% 
-  write_csv(paste0(wd,"/Output/","species_densities_annotations_steep3_3Dsmoothed.csv")) 
+  write_csv(paste0(wd,"/Output/","species_densities_annotations_3Dsmoothed.csv")) 
 
 ```
 
@@ -337,11 +411,14 @@ bins_pca <- bins_df_density %>%
 plot_ly() %>%
   add_trace(x = bins_pca$x[,1], y = bins_pca$x[,2], z = bins_pca$x[,3],
             color = bins_metadata %>% filter(!str_detect(bin, "All")) %>% pull(mean_depth)  ,
-            type = "scatter3d", mode = "markers") %>% # 
-  layout(title = "PCA of Species Density in 50m Bins",
+            type = "scatter3d", mode = "markers"
+            ) %>% # 
+  layout(title = paste0("PCA of Species Density in ",bin_size,"m Bins"),
          scene = list(xaxis = list(title = "PC1"),
                       yaxis = list(title = "PC2"),
                       zaxis = list(title = "PC3")))
 # put the name of the bins as labels 
+
+
 
 ```
