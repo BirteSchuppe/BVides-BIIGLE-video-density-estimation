@@ -178,6 +178,8 @@ first and last frames for each annotations
 
 Here, there is a check to remove annotations that are longer than 10s 
 
+It will also remove the laser label from the species records, as it is not a species record and its density is not meaningful. If you have other labels that are not species records, you can remove them here by filtering out the label_name that contains the name of the label you want to remove, for example if you have a label called "No observation" that is not a species record, you can remove it by filtering out the label_name that contains "No observation".
+
 ```{r}
 
 # first and last frame of each annotation 
@@ -214,6 +216,14 @@ if(nrow(long_annotations) > 0 ) {
 }
 
   arranged_biigle_annotations %<>% filter(record_duration <= 10 )
+  
+  
+# remove the laser label from the species records  
+ arranged_biigle_annotations %<>% filter( label_name != laser_label  )
+ 
+# add other filter
+ arranged_biigle_annotations %>% filter( !str_detect(label_name, c("the other stuff") )  )
+  
 
 ```
 
@@ -298,23 +308,31 @@ bins_df %>% select(-bin) %>%
 
 3D Depth Plot We create a 3D plot to visualize the X, Y, and depth dimensions, color-coded by bins.
 
+**pro tip**: you can hover over the lines to see the bin names and the markers to see the species names and depth values.
+**pro tip**: click on the legend to show/hide specific bins or annotations.
+
 ```{r}
-plot_ly(dataset, x = ~X, y = ~Y, z = ~-depth,
-        color = ~bin, 
-        colors = mycolors,
-        type = "scatter3d", mode = "markers", 
-        marker = list(size = 2))  %>%
-  layout(title = "XY Depth in 3D with Bin Color") 
 
-
-            !!! make a better plot !!! 
-
-           text = ~datetime%>% as.character(),
-            hovertemplate = paste('<b>Lon</b>: %{x}',
-                                  '<br><b>Lat</b>: %{y}',
-                                  '<br><b>Depth</b>: %{z}',
-                                  '<br><b>Time</b>: %{text}',sep = "" )
-
+# plot the navigation lines coloured by bin
+plot_ly() %>% 
+  add_trace(data = navigation_data, x = ~X, y = ~Y, z = ~-depth,
+            color = ~bin, 
+            colors = mycolors,
+            type = "scatter3d", mode = "line", name = ~bin,
+            text = ~bin %>% as.character(),
+            line = list(size = 5 ) ) %>%
+  # add the species records as markers
+  add_trace(data = dataset %>% filter( label_name != laser_label  ),
+            x = ~X, y = ~Y, z = ~-depth,
+            type = "scatter3d", mode = "markers", name = "Annotations",
+            text = ~label_name %>% as.character(),
+            marker = list(size = 3, symbol = "circle" ), 
+            hovertemplate = paste('<br><b>Depth</b>: %{z}',
+                                  '<br><b>label</b>: %{text}',sep = "" ) 
+            
+            ) %>%
+  layout(scene = list(xaxis = list(title = "X"), yaxis = list(title = "Y"), zaxis = list(title = "Depth")),
+         title = "Navigation and Annotations in 3D")
 
 ```
 
@@ -324,7 +342,7 @@ Species Abundance Export the table of species abundance per bin.
 
 ```{r}
 bins_df %>% 
-  write_csv(paste0("../Output/",bin_size,"mbins_species_abundances_annotations_3Dsmoothed.csv"))
+  write_csv(paste0("../Output/",generic_annotation_name,"__",bin_size,"mbins_species_abundances_","_3Dsmoothed.csv"))
 ```
 
 ###Species Density Calculate the density of each species in each bin based on surface area.
@@ -366,7 +384,7 @@ bins_df_density %>% bind_rows() -> bins_df_density
 
 # export tables of species densities per bin
 bins_df_density %>% 
-  write_csv(paste0(wd,"/Output/",bin_size,"mbins_species_densities_annotations_3Dsmoothed.csv"))
+  write_csv(paste0(wd,"/Output/",generic_annotation_name,"__",bin_size,"mbins_species_densities_" ,"_3Dsmoothed.csv"))
 
 ### calculate total species density of total transect area
 ### first calculate total surface from previous calculated average_image_width multiplied with total_distance_travelled value. IMPORTANT: to get the average image width variable, this needs to be first computed in script 3!
@@ -388,7 +406,7 @@ total_df_density %>% select(-bin) %>%
 
 ### export tables of species density
 total_df_density  %>% 
-  write_csv(paste0(wd,"/Output/","species_densities_annotations_3Dsmoothed.csv")) 
+  write_csv(paste0(wd,"/Output/",generic_annotation_name,"__","species_densities_", "_3Dsmoothed.csv")) 
 
 ```
 

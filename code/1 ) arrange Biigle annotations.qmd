@@ -43,6 +43,8 @@ str_subset(pattern = "arranged", negate = T)  %>%
 
 generic_annotation_file <-  "generic_annotation.csv"
 
+generic_annotation_file %>% str_remove(pattern = ".csv") -> generic_annotation_name
+
 read_csv( paste0(wd,"./annotations/",generic_annotation_file )  ) -> All_annotations
 
 print(paste0("loading annotation file: ", generic_annotation_file, "  with ", nrow(All_annotations)  ) )
