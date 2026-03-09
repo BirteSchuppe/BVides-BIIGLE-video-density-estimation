@@ -40,6 +40,6 @@ README.html
 /.code/*.html
 # the content of the annotation and nav folders shouldnt be updated with users tables 
 /Output/*.csv
-#/Output/
+/Output/figures/
 annotations/ 
 nav/
