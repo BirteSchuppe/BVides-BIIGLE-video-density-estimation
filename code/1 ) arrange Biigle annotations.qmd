@@ -95,12 +95,17 @@ print(paste0("time difference between first and last annotation: ", time_diff %>
 
 ```{r}
 
-All_annotations %>% filter( grepl("laser", label_name, ignore.case = T) ) %>% 
-  distinct(label_name) %>% pull() -> laser_label 
+# get the labels with the word "laser" - case insensitive - so it will pick up "Laser" or "LASER"
+All_annotations %>%
+  distinct(label_name) %>% pull()  %>% 
+  str_subset(pattern = fixed("laser",ignore_case = T)  )  -> laser_label  
 
 if(length(laser_label) == 0 ) { 
   print("no laser label found in the annotation file, please check your annotation file and make sure there is a label that contains the word 'laser' (case insensitive)")
-} else {
+} else if(length(laser_label) > 1 ) {
+  warning("there are multiple laser labels found in the annotation file, please check your annotation file and make sure there is only one label that contains the word 'laser' (case insensitive)")
+  print(paste0("the laser labels found in the annotation file are: ", paste(laser_label, collapse = ", ") ) )
+}else {
   print(paste0("the laser label in the annotation file is: ", laser_label ) )
 }
 
