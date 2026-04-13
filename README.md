@@ -4,7 +4,7 @@ This work is licensed under <a href="https://creativecommons.org/licenses/by/4.0
 
 We present a method to calculate epifaunal (binned) species abundance and density along video transects, calculating a strip transect of seabed area (transect length \* transect width) derived from geographic position and video data.
 
-[![DOI]https://doi.org/10.5281/zenodo.19552623
+https://doi.org/10.5281/zenodo.19552623
 
 **Input:** There are two input files needed for the scripts to run. 1) annotations (csv.): this is the standard Biigle Video annotations csv file with 1-frames annotations ( tracked annotation will not work) and lasers marked regularly, whereas each dot was marked individually using the "point annotation tool". 2) navigation (csv./.txt): Following data needs to be extracted from the raw data derived from the (ROV) GPS transponder: with time in real-world, time in video, geographic coordinates and depth (positive or negative is up to you, it will work either way) are mandatory NOTE: additionally pitch, roll, yaw, and camera parameters (focal length, sensor size, etc.) can be included but are not being processed- this is the standard Biigle Video navigation csv file with 1-frame navigation data and lasers marked regularly
 
